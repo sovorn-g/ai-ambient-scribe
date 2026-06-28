@@ -7,19 +7,40 @@ If a metric ever requires reaching past the interface, the seam is wrong
 """
 from __future__ import annotations
 
+from typing import Any, Callable
+
 from scribe.app.scribe import Scribe
-from scribe.domain.types import EvalReport, PatientContext
+from scribe.domain.types import EvalReport, GroundedNote, PatientContext
 from eval.datasets.base import Dataset
 from eval.metrics.completeness import note_to_text, score_rouge
 from eval.metrics.wer import score_wer
 
+_UNSET: Any = object()
+
 
 class EvalHarness:
-    """Runs a Scribe over every item in a Dataset and returns an EvalReport."""
+    """Runs a Scribe over every item in a Dataset and returns an EvalReport.
 
-    def __init__(self, scribe: Scribe, ctx: PatientContext) -> None:
+    Args:
+        scribe: injected Scribe (real or fake).
+        ctx:    PatientContext used for every generateDraft call.
+        nlp:    NER callable ``text → [entity, …]`` for entity grounding.
+                Omit to auto-load scispaCy; pass ``None`` to disable entity grounding.
+    """
+
+    def __init__(
+        self,
+        scribe: Scribe,
+        ctx: PatientContext,
+        *,
+        nlp: Callable[[str], list[str]] | None = _UNSET,
+    ) -> None:
         self._scribe = scribe
         self._ctx = ctx
+        if nlp is _UNSET:
+            from eval.metrics.grounding import load_scispacy_nlp
+            nlp = load_scispacy_nlp()
+        self._nlp: Callable[[str], list[str]] | None = nlp
 
     def run(self, dataset: Dataset) -> EvalReport:
         wer_scores: list[float] = []
@@ -27,6 +48,8 @@ class EvalHarness:
         rouge1: list[float] = []
         rouge2: list[float] = []
         rougeL: list[float] = []
+        citation_cov: list[float] = []
+        entity_gnd: list[float] = []
 
         for item in dataset.items():
             draft = self._scribe.generateDraft(item.audio, self._ctx)
@@ -55,6 +78,17 @@ class EvalHarness:
                 rouge2.append(scores["rouge2"])
                 rougeL.append(scores["rougeL"])
 
+            # Grounding — always scored when note is GroundedNote.
+            if isinstance(draft.note, GroundedNote):
+                from eval.metrics.grounding import score_citation_coverage, score_entity_grounding
+                citation_cov.append(score_citation_coverage(draft.note, draft.dialogue))
+                if self._nlp is not None:
+                    note_text = note_to_text(draft.note)
+                    transcript_text = _dialogue_to_text(draft.dialogue)
+                    entity_gnd.append(
+                        score_entity_grounding(note_text, transcript_text, self._nlp)
+                    )
+
         metrics: dict[str, dict[str, float]] = {}
         if wer_scores:
             metrics["asr"] = {"wer": _mean(wer_scores)}
@@ -66,6 +100,10 @@ class EvalHarness:
                 "rouge2": _mean(rouge2),
                 "rougeL": _mean(rougeL),
             }
+        if citation_cov:
+            metrics["grounding"] = {"citation_coverage": _mean(citation_cov)}
+            if entity_gnd:
+                metrics["grounding"]["entity_grounding"] = _mean(entity_gnd)
 
         return EvalReport(metrics=metrics)
 

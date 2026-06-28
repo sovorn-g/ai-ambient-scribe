@@ -1,4 +1,4 @@
-"""Phase 3a — eval harness unit tests.
+"""Phase 3a/3b — eval harness unit tests.
 
 Scorers are pure functions; tested directly on tiny fixtures (no model loaded).
 Harness is tested through a fake Dataset + the existing build_fake_scribe helper.
@@ -284,3 +284,174 @@ def test_render_report_multi_component():
     assert "completeness" in rendered
     assert "rouge1" in rendered
     assert "0.7200" in rendered
+
+
+# ── Phase 3b — citation coverage ─────────────────────────────────────────────
+
+def _make_dialogue_with_ids(*ids: str) -> Dialogue:
+    return Dialogue(utterances=[
+        Utterance(
+            id=uid, role=Role.CLINICIAN, text=f"text for {uid}",
+            time_span=TimeSpan(start=float(i), end=float(i + 1)),
+            speaker_id="spk0",
+        )
+        for i, uid in enumerate(ids)
+    ])
+
+
+def test_citation_coverage_empty_note_is_one():
+    from eval.metrics.grounding import score_citation_coverage
+    note = SOAPNote()
+    dialogue = _make_dialogue_with_ids("u0")
+    assert score_citation_coverage(note, dialogue) == pytest.approx(1.0)
+
+
+def test_citation_coverage_all_valid():
+    from eval.metrics.grounding import score_citation_coverage
+    from scribe.domain.types import SpanRef
+    dialogue = _make_dialogue_with_ids("u0", "u1")
+    note = SOAPNote(
+        subjective=[Claim(text="A", citations=[SpanRef(utterance_id="u0")])],
+        plan=[Claim(text="B", citations=[SpanRef(utterance_id="u1")])],
+    )
+    assert score_citation_coverage(note, dialogue) == pytest.approx(1.0)
+
+
+def test_citation_coverage_partial_fabricated():
+    """One valid citation, one fabricated (non-existent utterance_id) → coverage < 1.0."""
+    from eval.metrics.grounding import score_citation_coverage
+    from scribe.domain.types import SpanRef
+    dialogue = _make_dialogue_with_ids("u0")
+    note = SOAPNote(
+        subjective=[Claim(text="real", citations=[SpanRef(utterance_id="u0")])],
+        plan=[Claim(text="hallucinated", citations=[SpanRef(utterance_id="DOESNOTEXIST")])],
+    )
+    cov = score_citation_coverage(note, dialogue)
+    assert cov == pytest.approx(0.5)
+
+
+def test_citation_coverage_all_fabricated():
+    from eval.metrics.grounding import score_citation_coverage
+    from scribe.domain.types import SpanRef
+    dialogue = _make_dialogue_with_ids("u0")
+    note = SOAPNote(
+        subjective=[Claim(text="x", citations=[SpanRef(utterance_id="FAKE")])],
+    )
+    assert score_citation_coverage(note, dialogue) == pytest.approx(0.0)
+
+
+def test_citation_coverage_no_citations_drops_all():
+    from eval.metrics.grounding import score_citation_coverage
+    dialogue = _make_dialogue_with_ids("u0")
+    note = SOAPNote(subjective=[Claim(text="ungrounded", citations=[])])
+    assert score_citation_coverage(note, dialogue) == pytest.approx(0.0)
+
+
+# ── Phase 3b — entity grounding ───────────────────────────────────────────────
+
+def test_entity_grounding_all_present():
+    from eval.metrics.grounding import score_entity_grounding
+    nlp = lambda text: ["amoxicillin", "sore throat"]
+    note_text = "prescribed amoxicillin for sore throat"
+    transcript = "patient has a sore throat. doctor prescribed amoxicillin 500mg."
+    assert score_entity_grounding(note_text, transcript, nlp) == pytest.approx(1.0)
+
+
+def test_entity_grounding_partial():
+    from eval.metrics.grounding import score_entity_grounding
+    nlp = lambda text: ["amoxicillin", "penicillin"]
+    note_text = "amoxicillin and penicillin"
+    transcript = "doctor mentioned amoxicillin only"
+    score = score_entity_grounding(note_text, transcript, nlp)
+    assert score == pytest.approx(0.5)
+
+
+def test_entity_grounding_no_entities_returns_one():
+    from eval.metrics.grounding import score_entity_grounding
+    nlp = lambda text: []  # NER found nothing
+    assert score_entity_grounding("some text", "some transcript", nlp) == pytest.approx(1.0)
+
+
+def test_entity_grounding_hallucinated_entity():
+    from eval.metrics.grounding import score_entity_grounding
+    nlp = lambda text: ["metformin"]
+    note_text = "prescribed metformin"
+    transcript = "patient discussed headache; no medication mentioned"
+    assert score_entity_grounding(note_text, transcript, nlp) == pytest.approx(0.0)
+
+
+def test_load_scispacy_nlp_returns_none_when_model_missing():
+    # Model not installed → should return None gracefully, never raise.
+    from eval.metrics.grounding import load_scispacy_nlp
+    result = load_scispacy_nlp()
+    # Either None (model absent) or a callable (model present) — never an exception.
+    assert result is None or callable(result)
+
+
+# ── Phase 3b — harness grounding integration ──────────────────────────────────
+
+# Canned LLM response that includes citations matching the FakeDialogueExtractor's
+# utterance IDs ("u0000", "u0001"), so CitationValidator passes claims through
+# and the Draft contains a non-empty GroundedNote.
+_CANNED_WITH_CITATIONS = {
+    "subjective": [
+        {
+            "text": "Patient reports sore throat for three days.",
+            "citations": [{"utterance_id": "u0001"}],
+        }
+    ],
+    "objective": [],
+    "assessment": [
+        {
+            "text": "Viral pharyngitis consistent with the dialogue.",
+            "citations": [{"utterance_id": "u0001"}],
+        }
+    ],
+    "plan": [
+        {
+            "text": "Rest, fluids, and analgesia.",
+            "citations": [{"utterance_id": "u0000"}],
+        }
+    ],
+}
+
+
+def test_harness_grounding_citation_coverage_in_report():
+    from tests.conftest import build_fake_scribe
+    scribe, _, _ = build_fake_scribe(llm_canned=_CANNED_WITH_CITATIONS)
+    ctx = PatientContext(patient_ref="p", encounter_ref="e")
+    # Pass nlp=None to disable entity grounding (no model available in CI).
+    item = DatasetItem(item_id="g01", audio=_fake_audio())
+    report = EvalHarness(scribe, ctx, nlp=None).run(_StaticDataset([item]))
+
+    assert "grounding" in report.metrics
+    assert "citation_coverage" in report.metrics["grounding"]
+    assert report.metrics["grounding"]["citation_coverage"] == pytest.approx(1.0)
+
+
+def test_harness_grounding_with_mock_nlp():
+    from tests.conftest import build_fake_scribe
+    scribe, _, _ = build_fake_scribe(llm_canned=_CANNED_WITH_CITATIONS)
+    ctx = PatientContext(patient_ref="p", encounter_ref="e")
+    # "three days" appears verbatim in the fake dialogue: "sore for three days"
+    mock_nlp = lambda text: ["three days"] if text else []
+    item = DatasetItem(item_id="g02", audio=_fake_audio())
+    report = EvalHarness(scribe, ctx, nlp=mock_nlp).run(_StaticDataset([item]))
+
+    assert "grounding" in report.metrics
+    assert "entity_grounding" in report.metrics["grounding"]
+    assert report.metrics["grounding"]["entity_grounding"] == pytest.approx(1.0)
+
+
+# ── Phase 3b — report eyeball checklist ───────────────────────────────────────
+
+def test_render_report_includes_eyeball_checklist():
+    report = EvalReport(metrics={"asr": {"wer": 0.1}})
+    rendered = render_report(report)
+    assert "Human Eyeball" in rendered
+    assert "hallucinated" in rendered
+
+
+def test_render_report_empty_includes_eyeball_checklist():
+    rendered = render_report(EvalReport(metrics={}))
+    assert "Human Eyeball" in rendered
