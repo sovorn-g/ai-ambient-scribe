@@ -139,9 +139,9 @@ def test_e2e_generate_approve_export():
     assert isinstance(draft, Draft)
     assert draft.status.value == "DRAFT"
     assert draft.dialogue.utterances  # dialogue came through the fake
-    assert draft.note.subjective  # note came through the FakeLLMClient
-    # No claims have citations yet — Slice 0 returns SOAPNote, not GroundedNote.
-    assert all(not c.citations for c in draft.note.all_claims())
+    assert draft.note.subjective  # note came through the FakeGroundedLLMClient
+    # Phase 2+: every claim is grounded — all claims have ≥1 valid citation.
+    assert all(c.citations for c in draft.note.all_claims())
 
     # 2. Clinician edits (Slice 0: no edits, just round-trip) → EditedDraft.
     edited = EditedDraft(
