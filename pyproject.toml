@@ -35,8 +35,9 @@ phase2 = [
 # ── Phase 3 — eval harness ────────────────────────────────────────────────────
 phase3 = [
   "jiwer",                    # WER
-  "scispacy",                 # medical NER for entity-grounding (en_core_sci_sm)
-  "medspacy",                 # clinical NER pipeline
+  "rouge-score",              # ROUGE-1/2/L completeness vs ACI-Bench
+  "scispacy",                 # medical NER for entity-grounding (en_core_sci_sm) — phase 3b
+  "medspacy",                 # clinical NER pipeline — phase 3b
 ]
 # ── Phase 4 — note-LLM bake-off ───────────────────────────────────────────────
 phase4 = [
@@ -54,7 +55,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["scribe*", "tests*"]
+include = ["scribe*", "tests*", "eval*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
