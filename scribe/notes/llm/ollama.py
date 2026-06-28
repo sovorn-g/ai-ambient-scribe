@@ -1,4 +1,10 @@
-"""Ollama LLMClient — real adapter serving Qwen2.5-7B-Instruct (q4).
+"""Ollama LLMClient — real adapter, parameterized by Ollama model tag.
+
+Phase 4 uses this single adapter for the note-LLM bake-off: each ``ModelSpec``
+in ``eval/models.py`` is swapped in by constructing ``OllamaLLMClient(model_id=
+spec.ollama_tag)``. The grounding + prompt logic lives in ``scribe/notes`` and
+is shared across every model — only the *completion* varies through this seam,
+which is exactly the locality rule from design.md §5.
 
 Heavy import (ollama python client) is deferred to ``__init__`` so importing
 this module never requires the optional dep.

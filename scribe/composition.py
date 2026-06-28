@@ -75,8 +75,24 @@ def _build_draft_store(cfg: Any) -> DraftStore:
 
 
 def _build_model_host(cfg: Any) -> ModelHost:
-    """Phase 0: trivial. Phase 4 deepens (multi-model residency for bake-off)."""
-    return ModelHost(cfg.get("model_host", {}))
+    """Phase 4: deepened with injected loader/evictor callbacks + memory budget.
+
+    cfg.model_host may carry:
+      * ``loader`` / ``evictor``: callables (model_tag) -> None. If absent,
+        the host is a no-op tracker (CI/test path).
+      * ``memory_budget_gb``: advisory budget, default 16.0.
+
+    Real Ollama wiring (e.g. ``ollama pull`` / unload) is injected here; the
+    bake-off harness calls ``ensure_resident`` per model so the previous
+    resident is evicted before the next loads.
+    """
+    mcfg = cfg.get("model_host", {}) or {}
+    return ModelHost(
+        mcfg,
+        loader=mcfg.get("loader"),
+        evictor=mcfg.get("evictor"),
+        memory_budget_gb=float(mcfg.get("memory_budget_gb", 16.0)),
+    )
 
 
 def _build_dialogue_extractor(cfg: Any) -> DialogueExtractor:
