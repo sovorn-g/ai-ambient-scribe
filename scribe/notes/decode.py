@@ -17,14 +17,34 @@ def parse_soap_note(raw: str | dict[str, Any]) -> SOAPNote:
     """Parse raw model output into a SOAPNote.
 
     Lenient about: extra whitespace, fenced ```json blocks, missing sections
-    (treated as empty), and unknown keys (ignored). Strict about: each section
-    being a list of {text: str}.
+    (treated as empty), unknown keys (ignored), and the common LLM failure of
+    wrapping the response inside a schema-mimicking ``{"type": "object",
+    "properties": {...}}`` wrapper (unwrapped automatically). Strict about:
+    each section being a list of {text: str}.
     """
     data = raw if isinstance(raw, dict) else _extract_json(raw)
+    data = _unwrap_schema_echo(data)
     sections = {}
     for key in ("subjective", "objective", "assessment", "plan"):
         sections[key] = _parse_claims(data.get(key, []))
     return SOAPNote(**sections)
+
+
+def _unwrap_schema_echo(data: dict[str, Any]) -> dict[str, Any]:
+    """If the LLM echoed the schema wrapper, unwrap to the instance under 'properties'.
+
+    Some LLMs respond to "match this schema" by producing
+    ``{"type": "object", "properties": {<actual soap note>}, ...}``
+    instead of an instance. Detect and unwrap that pattern.
+    """
+    if (
+        isinstance(data, dict)
+        and data.get("type") == "object"
+        and isinstance(data.get("properties"), dict)
+        and any(k in data["properties"] for k in ("subjective", "objective", "assessment", "plan"))
+    ):
+        return data["properties"]
+    return data
 
 
 def _extract_json(raw: str) -> dict[str, Any]:

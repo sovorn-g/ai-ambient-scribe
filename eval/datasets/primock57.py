@@ -1,14 +1,16 @@
 """PriMock57 dataset adapter.
 
 Expects data_dir to contain:
-  *.wav        — audio files
-  *.txt        — reference transcripts (optional; stem matches wav)
-  *.rttm       — reference diarization in RTTM format (optional; stem matches wav)
+  *.wav            — audio files (mixed mono 16k, see scripts/fetch_primock57.py)
+  *.txt            — reference transcripts (optional; stem matches wav)
+  *.rttm           — reference diarization in RTTM format (optional; stem matches wav)
+  *.note.json      — reference clinician note JSON (optional; stem matches wav)
 
 Returns empty list if data_dir does not exist (keeps tests green without real data).
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from scribe.domain.types import Audio
@@ -41,10 +43,21 @@ class PriMock57Dataset(Dataset):
             if rttm.exists():
                 ref_rttm = rttm.read_text(encoding="utf-8").strip()
 
+            ref_note: str | None = None
+            note_json = wav_path.with_suffix(".note.json")
+            if note_json.exists():
+                try:
+                    payload = json.loads(note_json.read_text(encoding="utf-8"))
+                    # Upstream PriMock57 ships the SOAP note under the "note" key.
+                    ref_note = (payload.get("note") or "").strip() or None
+                except (json.JSONDecodeError, OSError):
+                    ref_note = None
+
             result.append(DatasetItem(
                 item_id=item_id,
                 audio=Audio(source="file", path=str(wav_path)),
                 reference_transcript=ref_transcript,
                 reference_rttm=ref_rttm,
+                reference_note=ref_note,
             ))
         return result

@@ -45,10 +45,13 @@ def _build_diarizer(cfg: Any) -> Diarizer:
 
     return SherpaOnnxDiarizer(
         model_path=model_path,
+        segmentation_model_path=dcfg.get("segmentation_model_path"),
         num_threads=int(dcfg.get("num_threads", 1)),
         num_clusters=int(dcfg.get("num_clusters", -1)),
         threshold=float(dcfg.get("threshold", 0.5)),
         sample_rate=int(dcfg.get("sample_rate", 16000)),
+        min_duration_on=float(dcfg.get("min_duration_on", 0.3)),
+        min_duration_off=float(dcfg.get("min_duration_off", 0.5)),
     )
 
 

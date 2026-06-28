@@ -35,20 +35,22 @@ def align(
     - Empty-text segments are dropped in both branches.
     """
     utterances: list[Utterance] = []
-    for i, seg in enumerate(segments):
+    kept = 0
+    for seg in segments:
         if not seg.text:
             continue  # drop empty segments consistently
         best_turn = _best_overlap_turn(seg.time_span, turns) if turns else None
         speaker_id = best_turn.speaker_id if best_turn is not None else UNKNOWN_SPEAKER
         utterances.append(
             Utterance(
-                id=_stable_utterance_id(i),
+                id=_stable_utterance_id(kept),
                 role=base_role,
                 text=seg.text,
                 time_span=seg.time_span,
                 speaker_id=speaker_id,
             )
         )
+        kept += 1
     return Dialogue(utterances=utterances)
 
 
