@@ -1,7 +1,8 @@
 """Prompt construction for the SOAP NoteGenerator. Pure function.
 
-Slice 0: plain prompt, no span-citation instructions. Phase 2 deepens this
-to demand grounded citations + constrained JSON.
+Phase 2: every claim must cite the utterance id(s) that ground it.
+The model is shown the dialogue with labelled utterance ids ([u0001], etc.)
+and instructed to populate the citations array per claim.
 """
 
 from __future__ import annotations
@@ -12,15 +13,36 @@ from typing import Any
 from scribe.domain.types import Dialogue
 
 
+def _span_ref_item() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "utterance_id": {"type": "string"},
+            "char_span": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "minItems": 2,
+                "maxItems": 2,
+            },
+        },
+        "required": ["utterance_id"],
+        "additionalProperties": False,
+    }
+
+
 def _claim_item() -> dict[str, Any]:
     return {
         "type": "object",
         "properties": {
             "text": {"type": "string"},
-            # Slice 0: citations omitted from the prompt; Phase 2 adds them.
+            "citations": {
+                "type": "array",
+                "items": _span_ref_item(),
+                "minItems": 1,
+            },
         },
-        "required": ["text"],
-        "additionalProperties": True,
+        "required": ["text", "citations"],
+        "additionalProperties": False,
     }
 
 
@@ -38,11 +60,7 @@ SOAP_SCHEMA: dict[str, Any] = {
 
 
 def render_dialogue_text(dialogue: Dialogue) -> str:
-    """Render dialogue as a numbered, line-stable transcript for the LLM.
-
-    Utterance ids are stable (``u0001``...), so Phase-2 span citations can
-    reference them by id without re-parsing.
-    """
+    """Render dialogue as a numbered, line-stable transcript for the LLM."""
     lines = []
     for u in dialogue.utterances:
         lines.append(f"[{u.id}] {u.role.value}: {u.text}")
@@ -50,13 +68,17 @@ def render_dialogue_text(dialogue: Dialogue) -> str:
 
 
 def build_prompt(dialogue: Dialogue) -> str:
-    """Slice-0 plain SOAP prompt. Pure — no I/O, no model calls."""
+    """Grounded SOAP prompt — every claim must cite its supporting utterance ids."""
     transcript = render_dialogue_text(dialogue)
     return (
-        "You are a clinical scribe. Read the doctor–patient dialogue and write "
-        "a concise SOAP note grounded strictly in what was said. Do not invent "
-        "information not present in the dialogue.\n\n"
+        "You are a clinical scribe. Read the doctor–patient dialogue below and "
+        "write a concise SOAP note grounded strictly in what was said. "
+        "Do not invent information not present in the dialogue.\n\n"
+        "IMPORTANT: For every claim you write, you MUST include a 'citations' "
+        "array listing the utterance id(s) (e.g. \"u0001\") that support it. "
+        "Only cite utterance ids that appear in the dialogue. "
+        "A claim without a valid citation will be discarded.\n\n"
         f"Dialogue:\n{transcript}\n\n"
-        "Respond with JSON only, matching this schema:\n"
+        "Respond with JSON only, matching this schema exactly:\n"
         f"{json.dumps(SOAP_SCHEMA, indent=2)}\n"
     )

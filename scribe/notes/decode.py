@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from scribe.domain.types import Claim, SOAPNote
+from scribe.domain.types import Claim, SOAPNote, SpanRef
 
 
 def parse_soap_note(raw: str | dict[str, Any]) -> SOAPNote:
@@ -51,5 +51,27 @@ def _parse_claims(items: Any) -> list[Claim]:
         if isinstance(item, dict):
             text = item.get("text")
             if isinstance(text, str) and text.strip():
-                claims.append(Claim(text=text))
+                citations = _parse_citations(item.get("citations"))
+                claims.append(Claim(text=text, citations=citations))
     return claims
+
+
+def _parse_citations(raw: Any) -> list[SpanRef]:
+    if not isinstance(raw, list):
+        return []
+    refs = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        uid = item.get("utterance_id")
+        if not isinstance(uid, str) or not uid.strip():
+            continue
+        char_span: tuple[int, int] | None = None
+        cs = item.get("char_span")
+        if isinstance(cs, (list, tuple)) and len(cs) == 2:
+            try:
+                char_span = (int(cs[0]), int(cs[1]))
+            except (TypeError, ValueError):
+                pass
+        refs.append(SpanRef(utterance_id=uid, char_span=char_span))
+    return refs
