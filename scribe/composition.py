@@ -68,12 +68,20 @@ def _build_note_generator(cfg: Any) -> NoteGenerator:
 
 
 def _build_audio_source(cfg: Any) -> AudioSource:
-    """Phase 0/eval: FileAudioSource. Phase 5 fills mic/stream."""
+    """Phase 0/eval: FileAudioSource. Phase 5: mic/stream when audio_source='mic'."""
+    source_type = cfg.get("audio_source", "file")
+    if source_type == "mic":
+        from scribe.runtime.audio import MicStreamAudioSource
+        return MicStreamAudioSource(cfg.get("audio_path", ""))
     return FileAudioSource(cfg["audio_path"])
 
 
 def _build_draft_store(cfg: Any) -> DraftStore:
-    """Phase 0: in-memory. Phase 5 fills sqlite."""
+    """Phase 0: in-memory. Phase 5: sqlite when draft_store='sqlite'."""
+    store_type = cfg.get("draft_store", "memory")
+    if store_type == "sqlite":
+        from scribe.app.drafts import SqliteDraftStore
+        return SqliteDraftStore(cfg.get("db_path", "drafts.db"))
     return InMemoryDraftStore()
 
 
