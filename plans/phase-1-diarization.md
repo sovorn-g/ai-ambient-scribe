@@ -56,13 +56,15 @@ data/.gitignore                             # add sherpa model path if needed (a
   diarizer adapter shape. Use real fixtures, not the model, in CI.
 
 ## Acceptance (execute-plan-v2.md §4 step 1)
-- [ ] Speaker-attributed `Dialogue` flows into the LLM (replaces UNKNOWN-only output).
+- [x] Speaker-attributed `Dialogue` flows into the LLM (replaces UNKNOWN-only output).
 - [ ] **≥80% of segments correctly attributed** on a sample PriMock57 consult (measure roughly here;
-      Phase 3 computes formal DER).
-- [ ] Manual speaker-correction hook exists as the fallback.
-- [ ] `DialogueExtractor.extract` signature unchanged; `tests/test_skeleton_e2e.py` still green.
+      Phase 3 computes formal DER). *Deferred: needs sherpa-onnx installed + a PriMock57 wav
+      fetched into `data/`; CI covers the adapter shape + heuristic, not the accuracy number.*
+- [x] Manual speaker-correction hook exists as the fallback (`apply_role_map` + `label_roles(role_map=...)`).
+- [x] `DialogueExtractor.extract` signature unchanged; `tests/test_skeleton_e2e.py` still green.
 
 ## Merge checklist
-- [ ] Only `_build_diarizer` touched in `composition.py`.
-- [ ] No edits outside `scribe/dialogue/**` + `tests/test_dialogue.py`.
-- [ ] Phase-0 e2e test still passes (interface stability proof).
+- [x] Only `_build_diarizer` touched in `composition.py`.
+- [x] No edits outside `scribe/dialogue/**` + `tests/test_dialogue.py` (+ the `_build_diarizer` body
+      in `composition.py`, per rule 2).
+- [x] Phase-0 e2e test still passes (interface stability proof).

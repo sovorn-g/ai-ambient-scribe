@@ -34,8 +34,22 @@ def _build_transcriber(cfg: Any) -> Transcriber:
 
 
 def _build_diarizer(cfg: Any) -> Diarizer:
-    """Phase 0: NullDiarizer. Phase 1 fills body with sherpa-onnx."""
-    return NullDiarizer()
+    """Phase 0: NullDiarizer. Phase 1: sherpa-onnx when ``cfg.diarizer.model_path``
+    is set; otherwise fall back to NullDiarizer (keeps the phase-0 e2e path green
+    when no diarizer is configured)."""
+    dcfg = cfg.get("diarizer", {}) or {}
+    model_path = dcfg.get("model_path")
+    if not model_path:
+        return NullDiarizer()
+    from scribe.dialogue.diarizer.sherpa_onnx import SherpaOnnxDiarizer
+
+    return SherpaOnnxDiarizer(
+        model_path=model_path,
+        num_threads=int(dcfg.get("num_threads", 1)),
+        num_clusters=int(dcfg.get("num_clusters", -1)),
+        threshold=float(dcfg.get("threshold", 0.5)),
+        sample_rate=int(dcfg.get("sample_rate", 16000)),
+    )
 
 
 def _build_llm(cfg: Any) -> LLMClient:
