@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-ambient-scribe"
+version = "0.1.0"
+description = "Fully-local ambient scribe: audio → speaker-attributed transcript → grounded SOAP note → FHIR DocumentReference."
+requires-python = ">=3.11"
+readme = "README.md"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Core runtime deps (every phase). Lightweight; installed for tests + CI.
+# ─────────────────────────────────────────────────────────────────────────────
+dependencies = [
+  "pydantic>=2.6",            # domain types + constrained schemas (all phases)
+  "fhir.resources>=8.0",      # FHIR R5 DocumentReference (phase 0+; R5 default in v8)
+]
+
+[project.optional-dependencies]
+# ── Phase 0 (walking skeleton) — real adapters ────────────────────────────────
+phase0 = [
+  "mlx-whisper",              # ASR adapter (large-v3-turbo) — Slice 0 real path
+  "ollama>=0.3",              # Python client for Ollama (Qwen2.5-7B-Instruct q4)
+]
+# ── Phase 1 — diarization ─────────────────────────────────────────────────────
+phase1 = [
+  "sherpa-onnx",              # offline diarization (Apache-2.0, no HF token)
+  "pyannote.metrics",         # DER metric (eval-side; paired with phase3)
+]
+# ── Phase 2 — grounding ───────────────────────────────────────────────────────
+phase2 = [
+  # constrained-JSON decode is pure-python (scribe/notes/decode.py); no new dep.
+]
+# ── Phase 3 — eval harness ────────────────────────────────────────────────────
+phase3 = [
+  "jiwer",                    # WER
+  "scispacy",                 # medical NER for entity-grounding (en_core_sci_sm)
+  "medspacy",                 # clinical NER pipeline
+]
+# ── Phase 4 — note-LLM bake-off ───────────────────────────────────────────────
+phase4 = [
+  # model swap is a parameter to OllamaLLMClient; no new dep.
+]
+# ── Phase 5 — Next.js UI + FastAPI adapter ────────────────────────────────────
+phase5 = [
+  "fastapi>=0.110",
+  "uvicorn[standard]",
+]
+# ── Dev / test ────────────────────────────────────────────────────────────────
+dev = [
+  "pytest>=8",
+  "pytest-asyncio",
+]
+
+[tool.setuptools.packages.find]
+include = ["scribe*", "tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

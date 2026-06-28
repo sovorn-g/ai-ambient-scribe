@@ -1,0 +1,7 @@
+# data/ — datasets live here, gitignored.
+#
+# PriMock57 / ACI-Bench audio + transcripts, plus any Synthea output. These
+# are large and/or license-encumbered; they must NOT be committed. Fetch them
+# per the README.
+*
+!.gitignore
