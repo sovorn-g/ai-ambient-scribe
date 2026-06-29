@@ -94,13 +94,7 @@ export default function AudioUploader({ onFile }: Props) {
         <button
           onClick={() => selected && onFile(selected)}
           disabled={!selected}
-          className={`
-            font-grotesk font-semibold text-sm px-7 py-2.5 rounded transition-colors
-            ${selected
-              ? "bg-clinical text-white hover:bg-clinical/90 shadow-sm"
-              : "bg-ruled text-dusty cursor-not-allowed"
-            }
-          `}
+          className="bg-clinical text-white font-grotesk font-semibold text-sm px-7 py-2.5 rounded shadow-sm transition-colors hover:bg-[#153d6b] disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
         >
           Process consultation →
         </button>

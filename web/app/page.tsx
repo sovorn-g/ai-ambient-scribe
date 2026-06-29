@@ -107,6 +107,14 @@ export default function Home() {
   const [docRef,       setDocRef]       = useState<DocumentRefResponse | null>(null);
   const [error,        setError]        = useState<string | null>(null);
 
+  function friendlyError(e: unknown): string {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/networkerror|failed to fetch|load failed/i.test(msg)) {
+      return "Cannot reach the API server at localhost:8000. Start it with: uvicorn scribe.api.app:app --reload";
+    }
+    return msg;
+  }
+
   async function handleUploadAndGenerate(file: File) {
     setError(null);
     setStep("uploading");
@@ -118,7 +126,7 @@ export default function Home() {
       setEditedNote(d.note);
       setStep("review");
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(friendlyError(e));
       setStep("error");
     }
   }
@@ -132,7 +140,7 @@ export default function Home() {
       setDocRef(doc);
       setStep("done");
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(friendlyError(e));
       setStep("error");
     }
   }
