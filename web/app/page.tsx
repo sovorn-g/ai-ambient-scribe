@@ -7,7 +7,7 @@ import SOAPEditor from "@/components/SOAPEditor";
 import AudioUploader from "@/components/AudioUploader";
 import ApproveSection from "@/components/ApproveSection";
 import { uploadAudio, generateDraft, editDraft, approveDraft, checkHealth } from "@/lib/api";
-import type { DraftResponse, DocumentRefResponse, SOAPNote } from "@/lib/types";
+import type { DraftResponse, DocumentRefResponse, SOAPNote, SpanRef } from "@/lib/types";
 
 type Step = "idle" | "uploading" | "generating" | "review" | "approving" | "done" | "error";
 
@@ -144,6 +144,10 @@ export default function Home() {
   const [error,        setError]        = useState<string | null>(null);
   const [timerStart,   setTimerStart]   = useState<number | null>(null);
   const [timerEnd,     setTimerEnd]     = useState<number | null>(null);
+  // Phase-5b hover-highlight: the single active citation the SOAP editor is
+  // currently pointing at. Bound to the *first* citation of the hovered claim
+  // (multi-cite claims scroll to the first; TranscriptPane tints the match).
+  const [activeCitation, setActiveCitation] = useState<SpanRef | null>(null);
 
   function friendlyError(e: unknown): string {
     const msg = e instanceof Error ? e.message : String(e);
@@ -198,6 +202,13 @@ export default function Home() {
     setError(null);
     setTimerStart(null);
     setTimerEnd(null);
+    setActiveCitation(null);
+  }
+
+  function handleHoverCitations(citations: SpanRef[]) {
+    // First citation drives both the scroll target and the char_span <mark>.
+    // An empty array (e.g. an ungrounded manually-added claim) clears state.
+    setActiveCitation(citations.length > 0 ? citations[0] : null);
   }
 
   return (
@@ -350,15 +361,26 @@ export default function Home() {
             {/* Split: Transcript | SOAP */}
             <div className="grid grid-cols-2 gap-5">
               <div className="card px-6 py-6">
-                <p className="label-caps mb-5">Transcript</p>
-                <TranscriptPane utterances={draft.dialogue} />
+                <div className="flex items-center gap-2 mb-5">
+                  <p className="label-caps">Transcript</p>
+                  <span className="label-caps text-dusty/50">· hover a claim →</span>
+                </div>
+                <TranscriptPane
+                  utterances={draft.dialogue}
+                  activeCitation={activeCitation}
+                />
               </div>
               <div className="card px-6 py-6">
                 <div className="flex items-center gap-2 mb-5">
                   <p className="label-caps">SOAP Note</p>
                   <span className="label-caps text-clinical/60">· editable</span>
                 </div>
-                <SOAPEditor note={editedNote} onChange={setEditedNote} />
+                <SOAPEditor
+                  note={editedNote}
+                  onChange={setEditedNote}
+                  onHoverCitations={handleHoverCitations}
+                  onLeaveCitations={() => setActiveCitation(null)}
+                />
               </div>
             </div>
 

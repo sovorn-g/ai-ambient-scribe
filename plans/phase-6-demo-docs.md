@@ -50,8 +50,8 @@ plans/                          # (optional) mark phases done
       *(README.md, docs/architecture.md)*
 - [ ] Demo video captures the money shot (grounded note falls out of a natural conversation).
       *(script + recording recipe in docs/demo.md; the .mp4 itself is gitignored — record &
-      host separately. NOTE: the Phase-5b hover-to-highlight UI binding is a documented gap,
-      filed for a web/-only follow-up; the grounding data is present end-to-end.)*
+      host separately. The Phase-5b hover-to-highlight UI binding is now wired, so beat 4
+      captures the on-screen snap-to-evidence, not just narration.)*
 
 ## Merge checklist
 - [x] Docs/media only; zero source edits. *(only README.md, docs/*, plans/phase-6 touched;
@@ -59,4 +59,4 @@ plans/                          # (optional) mark phases done
 - [x] All earlier phases merged and the full test suite green before recording the final demo.
       *(131 tests pass; bake-off re-run for fresh numbers)*
 
-## Status: DONE (docs) — video capture + Phase-5b hover-highlight follow-up remain.
+## Status: DONE (docs) — only the demo video capture remains (Phase-5b hover-highlight is now wired).

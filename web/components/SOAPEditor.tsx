@@ -1,10 +1,12 @@
 "use client";
 
-import type { SOAPNote, Claim } from "@/lib/types";
+import type { SOAPNote, Claim, SpanRef } from "@/lib/types";
 
 interface Props {
   note: SOAPNote;
   onChange: (note: SOAPNote) => void;
+  onHoverCitations: (citations: SpanRef[]) => void;
+  onLeaveCitations: () => void;
 }
 
 const SECTIONS: Array<{
@@ -23,13 +25,28 @@ function ClaimEditor({
   claim,
   onChange,
   onRemove,
+  onHoverCitations,
+  onLeaveCitations,
 }: {
   claim: Claim;
   onChange: (c: Claim) => void;
   onRemove: () => void;
+  onHoverCitations: (citations: SpanRef[]) => void;
+  onLeaveCitations: () => void;
 }) {
+  const citeCount = claim.citations.length;
   return (
-    <div className="group flex gap-2 items-start">
+    <div
+      className="group flex gap-2 items-start"
+      // Hover or keyboard focus on the claim fires the citation binding.
+      // We emit on hover-enter AND focus (so keyboard users get it too),
+      // and clear on hover-leave / blur. Editing the text doesn't clear
+      // the citation (it stays bound until the cursor leaves the row).
+      onMouseEnter={() => onHoverCitations(claim.citations)}
+      onMouseLeave={() => onLeaveCitations()}
+      onFocusCapture={() => onHoverCitations(claim.citations)}
+      onBlurCapture={() => onLeaveCitations()}
+    >
       <textarea
         rows={2}
         value={claim.text}
@@ -42,6 +59,20 @@ function ClaimEditor({
           transition-colors
         `}
       />
+      {/* Citation provenance badge — the affordance that says "this claim
+          is grounded." Hovering the row (or focusing the textarea) lights
+          up the cited transcript utterance on the left pane. */}
+      {citeCount > 0 && (
+        <span
+          className="mt-1 shrink-0 font-mono text-[9px] tracking-widest uppercase
+                     px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200
+                     cursor-help"
+          title={`${citeCount} transcript span${citeCount > 1 ? "s" : ""} cited by this claim — hover to highlight`}
+          aria-label={`${citeCount} citation${citeCount > 1 ? "s" : ""}`}
+        >
+          {citeCount} cite{citeCount > 1 ? "s" : ""}
+        </span>
+      )}
       <button
         onClick={onRemove}
         aria-label="Remove entry"
@@ -53,7 +84,12 @@ function ClaimEditor({
   );
 }
 
-export default function SOAPEditor({ note, onChange }: Props) {
+export default function SOAPEditor({
+  note,
+  onChange,
+  onHoverCitations,
+  onLeaveCitations,
+}: Props) {
   function updateSection(key: keyof SOAPNote, claims: Claim[]) {
     onChange({ ...note, [key]: claims });
   }
@@ -90,6 +126,8 @@ export default function SOAPEditor({ note, onChange }: Props) {
                   claim={claim}
                   onChange={(c) => updateClaim(key, idx, c)}
                   onRemove={() => removeClaim(key, idx)}
+                  onHoverCitations={onHoverCitations}
+                  onLeaveCitations={onLeaveCitations}
                 />
               ))}
             </div>

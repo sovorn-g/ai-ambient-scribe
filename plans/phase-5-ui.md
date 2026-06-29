@@ -66,12 +66,14 @@ tests/test_api.py                       # api adapter tests (through fakes)
 - Frontend: minimal component/e2e for the approve flow + DRAFT state (per `web/` tooling).
 
 ## Acceptance (execute-plan-v2.md §6 / §7)
-- [ ] Edit-and-approve UI; nothing saved without human sign-off; visible **DRAFT** state.
-- [ ] Play a PriMock57 consult **into the live pipeline** → speaker-attributed grounded note appears.
-- [ ] Hover a claim → its transcript span highlights (5b, once Phase 2 merged).
-- [ ] Approve → FHIR `DocumentReference` exported. CLI and UI share the same `approve` door.
+- [x] Edit-and-approve UI; nothing saved without human sign-off; visible **DRAFT** state.
+- [x] Play a PriMock57 consult **into the live pipeline** → speaker-attributed grounded note appears.
+- [x] Hover a claim → its transcript span highlights (5b, once Phase 2 merged). *(wired: hover/focus → scrollIntoView + amber tint + char_span `<mark>`)*
+- [x] Approve → FHIR `DocumentReference` exported. CLI and UI share the same `approve` door.
 
 ## Merge checklist
-- [ ] Only `_build_audio_source` / `_build_draft_store` touched in `composition.py`.
-- [ ] No edits to the `Scribe` facade or the approval gate (rule 4).
-- [ ] 5a mergeable without Phase 2; 5b gated on Phase 2 merge.
+- [x] Only `_build_audio_source` / `_build_draft_store` touched in `composition.py`.
+- [x] No edits to the `Scribe` facade or the approval gate (rule 4).
+- [x] 5a mergeable without Phase 2; 5b gated on Phase 2 merge. *(5b wired in a follow-up commit: web/-only, no scribe/** or eval/** edits)*
+
+## Status: DONE — 5a (UI shell + api + edit/approve + DRAFT banner) and 5b (hover-to-highlight with auto-scroll + char_span `<mark>`) both landed.
