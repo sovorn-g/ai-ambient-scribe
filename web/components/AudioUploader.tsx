@@ -7,8 +7,7 @@ interface Props {
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
@@ -17,46 +16,36 @@ export default function AudioUploader({ onFile }: Props) {
   const [selected, setSelected] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  function pick(file: File) {
-    setSelected(file);
-  }
-
+  function pick(file: File) { setSelected(file); }
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) pick(file);
+    const f = e.target.files?.[0];
+    if (f) pick(f);
   }
-
   function handleDrop(e: DragEvent<HTMLDivElement>) {
     e.preventDefault();
     setDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) pick(file);
-  }
-
-  function handleDragOver(e: DragEvent<HTMLDivElement>) {
-    e.preventDefault();
-    setDragging(true);
+    const f = e.dataTransfer.files?.[0];
+    if (f) pick(f);
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-5">
-      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
-        Consultation Recording
-      </h2>
+    <div className="card p-7 space-y-6">
+      <p className="label-caps">Consultation Recording</p>
 
-      {/* Drop zone */}
       <div
         onClick={() => inputRef.current?.click()}
         onDrop={handleDrop}
-        onDragOver={handleDragOver}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         className={`
-          relative border-2 border-dashed rounded-xl px-8 py-12 text-center cursor-pointer transition-colors
+          relative border-2 border-dashed rounded-md
+          flex flex-col items-center justify-center gap-3
+          py-14 cursor-pointer select-none transition-colors
           ${dragging
-            ? "border-blue-400 bg-blue-50"
+            ? "border-clinical bg-clinical/5"
             : selected
-            ? "border-emerald-300 bg-emerald-50"
-            : "border-slate-300 bg-slate-50 hover:border-blue-300 hover:bg-blue-50/40"
+            ? "border-emerald-400 bg-emerald-50/50"
+            : "border-ruled hover:border-dusty bg-vellum/60"
           }
         `}
       >
@@ -64,49 +53,58 @@ export default function AudioUploader({ onFile }: Props) {
           ref={inputRef}
           type="file"
           accept=".wav,.mp3,.m4a,.flac,.ogg"
-          className="hidden"
+          className="sr-only"
           onChange={handleChange}
         />
 
         {selected ? (
-          <div className="space-y-2">
-            <div className="w-12 h-12 mx-auto rounded-full bg-emerald-100 flex items-center justify-center text-2xl">
-              🎵
+          <>
+            <span className="text-3xl">🎵</span>
+            <div className="text-center">
+              <p className="font-grotesk font-semibold text-nuit text-sm">{selected.name}</p>
+              <p className="font-mono text-xs text-dusty mt-0.5">{formatBytes(selected.size)}</p>
             </div>
-            <p className="font-semibold text-slate-800 text-sm">{selected.name}</p>
-            <p className="text-xs text-slate-500">{formatBytes(selected.size)}</p>
-            <p className="text-xs text-emerald-600 font-medium">Ready to process</p>
-          </div>
+            <span className="label-caps text-emerald-600">Ready</span>
+          </>
         ) : (
-          <div className="space-y-3">
-            <div className="w-12 h-12 mx-auto rounded-full bg-slate-200 flex items-center justify-center text-2xl">
-              📁
+          <>
+            <span className="text-3xl text-dusty/50">↑</span>
+            <div className="text-center">
+              <p className="font-grotesk font-medium text-nuit text-sm">
+                Drop audio file or <span className="text-clinical underline underline-offset-2">browse</span>
+              </p>
+              <p className="font-mono text-xs text-dusty mt-1 tracking-wide">
+                .wav · .mp3 · .m4a · .flac
+              </p>
             </div>
-            <div>
-              <p className="font-semibold text-slate-700">Drop your audio file here</p>
-              <p className="text-sm text-slate-500 mt-1">or click to browse</p>
-            </div>
-            <p className="text-xs text-slate-400">Accepted: .wav · .mp3 · .m4a · .flac</p>
-          </div>
+          </>
         )}
       </div>
 
-      {selected && (
-        <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
+        {selected ? (
           <button
             onClick={() => { setSelected(null); if (inputRef.current) inputRef.current.value = ""; }}
-            className="text-xs text-slate-400 hover:text-slate-600"
+            className="label-caps text-dusty hover:text-alert transition-colors"
           >
-            ✕ Remove
+            remove file
           </button>
-          <button
-            onClick={() => onFile(selected)}
-            className="bg-[#1B4F8A] hover:bg-[#153d6b] text-white font-semibold px-6 py-2.5 rounded-lg shadow-sm transition-colors text-sm"
-          >
-            Process Consultation →
-          </button>
-        </div>
-      )}
+        ) : <span />}
+
+        <button
+          onClick={() => selected && onFile(selected)}
+          disabled={!selected}
+          className={`
+            font-grotesk font-semibold text-sm px-7 py-2.5 rounded transition-colors
+            ${selected
+              ? "bg-clinical text-white hover:bg-clinical/90 shadow-sm"
+              : "bg-ruled text-dusty cursor-not-allowed"
+            }
+          `}
+        >
+          Process consultation →
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,3 +1,42 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  ::selection {
+    background-color: #1B4D82;
+    color: #fff;
+  }
+
+  /* Scrollbar — minimal, warm-toned */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #F4F2EB; }
+  ::-webkit-scrollbar-thumb { background: #C4BDB0; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #7A6E60; }
+}
+
+@layer components {
+  /* Underline-only input — signature-line aesthetic */
+  .input-underline {
+    @apply bg-transparent border-0 border-b-2 border-ruled rounded-none
+           px-0 py-1.5 text-nuit text-sm font-grotesk
+           outline-none focus-visible:border-clinical focus-visible:ring-2 focus-visible:ring-clinical/20
+           placeholder:text-dusty/60 transition-colors;
+  }
+
+  /* Card — vellum with warm border, no radius excess */
+  .card {
+    @apply bg-white border border-ruled rounded-lg;
+  }
+
+  /* Label — all-caps Space Grotesk for section heads */
+  .label-caps {
+    @apply text-[10px] font-grotesk font-bold uppercase tracking-[0.14em] text-dusty;
+  }
+}

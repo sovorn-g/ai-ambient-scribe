@@ -11,37 +11,44 @@ import type { DraftResponse, DocumentRefResponse, SOAPNote } from "@/lib/types";
 
 type Step = "idle" | "uploading" | "generating" | "review" | "approving" | "done" | "error";
 
-const STEPS = [
-  { id: "idle",     label: "Upload"  },
-  { id: "review",   label: "Review"  },
-  { id: "done",     label: "Export"  },
-] as const;
+// ── Step indicator ────────────────────────────────────────────────────────────
 
-function stepIndex(step: Step): number {
-  if (step === "idle" || step === "uploading" || step === "generating" || step === "error") return 0;
-  if (step === "review" || step === "approving") return 1;
+const STEPS = [
+  { n: "01", label: "Upload"  },
+  { n: "02", label: "Review"  },
+  { n: "03", label: "Export"  },
+];
+
+function stepIdx(step: Step): number {
+  if (["idle", "uploading", "generating", "error"].includes(step)) return 0;
+  if (["review", "approving"].includes(step)) return 1;
   return 2;
 }
 
-function StepIndicator({ step }: { step: Step }) {
-  const current = stepIndex(step);
+function StepBar({ step }: { step: Step }) {
+  const cur = stepIdx(step);
   return (
-    <div className="flex items-center gap-0">
-      {STEPS.map((s, i) => (
-        <div key={s.id} className="flex items-center">
-          <div className="flex flex-col items-center gap-1">
-            <div className={`
-              w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors
-              ${i < current ? "bg-emerald-500 text-white" : i === current ? "bg-[#1B4F8A] text-white" : "bg-slate-200 text-slate-400"}
-            `}>
-              {i < current ? "✓" : i + 1}
-            </div>
-            <span className={`text-xs font-medium ${i === current ? "text-[#1B4F8A]" : "text-slate-400"}`}>
-              {s.label}
+    <div className="flex items-center gap-0" aria-label="Progress">
+      {STEPS.map(({ n, label }, i) => (
+        <div key={n} className="flex items-center">
+          <div className="flex items-baseline gap-1.5">
+            <span
+              className={`font-grotesk font-black text-sm tabular-nums transition-colors ${
+                i < cur ? "text-emerald-600" : i === cur ? "text-clinical" : "text-ruled"
+              }`}
+            >
+              {i < cur ? "✓" : n}
+            </span>
+            <span
+              className={`font-grotesk text-xs tracking-wide transition-colors ${
+                i === cur ? "text-nuit font-semibold" : "text-dusty/60"
+              }`}
+            >
+              {label}
             </span>
           </div>
           {i < STEPS.length - 1 && (
-            <div className={`h-0.5 w-16 mx-2 mb-4 transition-colors ${i < current ? "bg-emerald-400" : "bg-slate-200"}`} />
+            <div className={`mx-4 h-px w-10 transition-colors ${i < cur ? "bg-emerald-400" : "bg-ruled"}`} />
           )}
         </div>
       ))}
@@ -49,47 +56,30 @@ function StepIndicator({ step }: { step: Step }) {
   );
 }
 
-function StatusCard({ title, subtitle }: { title: string; subtitle?: string }) {
+// ── Loading card ──────────────────────────────────────────────────────────────
+
+function SpinnerCard({ title, sub }: { title: string; sub?: string }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
-      <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-blue-50 flex items-center justify-center">
-        <span className="animate-spin text-2xl inline-block">⚙</span>
+    <div className="card px-8 py-16 flex flex-col items-center gap-4 text-center">
+      <div className="w-8 h-8 border-2 border-ruled border-t-clinical rounded-full animate-spin motion-reduce:animate-none" />
+      <div>
+        <p className="font-grotesk font-semibold text-nuit">{title}</p>
+        {sub && <p className="font-grotesk text-sm text-dusty mt-1">{sub}</p>}
       </div>
-      <p className="font-semibold text-slate-700">{title}</p>
-      {subtitle && <p className="text-sm text-slate-400 mt-1">{subtitle}</p>}
     </div>
   );
 }
 
-function MetaPill({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="text-slate-500 text-sm">
-      <span className="font-medium text-slate-700">{label}:</span> {value}
-    </span>
-  );
-}
-
-function SectionHeader({ title, badge }: { title: string; badge?: string }) {
-  return (
-    <div className="flex items-center gap-2 mb-4">
-      <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">{title}</h2>
-      {badge && (
-        <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
-          {badge}
-        </span>
-      )}
-    </div>
-  );
-}
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function Home() {
-  const [patientRef, setPatientRef] = useState("patient-001");
+  const [patientRef,   setPatientRef]   = useState("patient-001");
   const [encounterRef, setEncounterRef] = useState("encounter-001");
-  const [step, setStep] = useState<Step>("idle");
-  const [draft, setDraft] = useState<DraftResponse | null>(null);
-  const [editedNote, setEditedNote] = useState<SOAPNote | null>(null);
-  const [docRef, setDocRef] = useState<DocumentRefResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [step,         setStep]         = useState<Step>("idle");
+  const [draft,        setDraft]        = useState<DraftResponse | null>(null);
+  const [editedNote,   setEditedNote]   = useState<SOAPNote | null>(null);
+  const [docRef,       setDocRef]       = useState<DocumentRefResponse | null>(null);
+  const [error,        setError]        = useState<string | null>(null);
 
   async function handleUploadAndGenerate(file: File) {
     setError(null);
@@ -130,110 +120,123 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Nav */}
-      <nav className="bg-[#0F2442] text-white px-6 py-3.5 flex items-center justify-between sticky top-0 z-10 shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center font-black text-sm select-none">
-            AS
-          </div>
-          <div>
-            <span className="text-base font-bold tracking-tight">Ambient Scribe</span>
-            <span className="ml-2 text-xs text-slate-400">clinical AI</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {(["Fully Local", "M4 16GB", "FHIR R5"] as const).map((tag) => (
-            <span key={tag} className="text-xs bg-slate-700 text-slate-300 px-2.5 py-1 rounded-full">
-              {tag}
+    <div className="min-h-screen bg-vellum">
+
+      {/* Masthead nav — editorial, no shadow */}
+      <header className="bg-nuit border-b border-white/10 px-8 py-4">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div className="flex items-baseline gap-3">
+            <span className="font-grotesk font-black text-white text-base tracking-[0.12em] uppercase">
+              Ambient Scribe
             </span>
-          ))}
+            <span className="font-grotesk text-white/30 text-xs">·</span>
+            <span className="font-grotesk text-white/40 text-xs tracking-wide">clinical AI</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-[10px] text-white/40 tracking-widest uppercase">
+              Local · M4 · FHIR R5
+            </span>
+          </div>
         </div>
-      </nav>
+      </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
-        {/* Step indicator */}
-        <div className="flex items-center justify-between">
-          <StepIndicator step={step} />
-        </div>
+      <main className="max-w-6xl mx-auto px-8 py-8 space-y-7">
 
-        {/* Error state */}
+        {/* Step bar */}
+        <StepBar step={step} />
+
+        {/* Error */}
         {step === "error" && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-5 flex items-start gap-4">
-            <div className="shrink-0 w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-red-500 font-bold">
-              !
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold text-red-800">Pipeline error</p>
-              <p className="text-sm text-red-700 mt-1">{error}</p>
-              <button onClick={reset} className="mt-3 text-sm text-red-600 hover:underline font-medium">
-                ← Try again
+          <div className="card px-7 py-5 border-alert/40 bg-red-50/60 flex items-start gap-4">
+            <span className="text-alert font-black text-lg pt-0.5 shrink-0">!</span>
+            <div>
+              <p className="font-grotesk font-semibold text-nuit">Pipeline error</p>
+              <p className="font-lora text-sm text-dusty mt-1">{error}</p>
+              <button
+                onClick={reset}
+                className="mt-3 label-caps text-clinical hover:underline"
+              >
+                try again
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 1: Upload */}
+        {/* ── Step 1: Upload ── */}
         {step === "idle" && (
-          <div className="space-y-4">
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">
-                Patient Context
-              </h2>
-              <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-5">
+            {/* Patient context */}
+            <div className="card px-7 py-5 space-y-4">
+              <p className="label-caps">Patient Context</p>
+              <div className="grid grid-cols-2 gap-6">
                 {[
-                  { label: "Patient Reference", value: patientRef, set: setPatientRef },
-                  { label: "Encounter Reference", value: encounterRef, set: setEncounterRef },
-                ].map(({ label, value, set }) => (
-                  <label key={label} className="block">
-                    <span className="text-xs font-medium text-slate-500">{label}</span>
+                  { id: "patient-ref",   label: "Patient reference",   val: patientRef,   set: setPatientRef,   autoComplete: "off" },
+                  { id: "encounter-ref", label: "Encounter reference",  val: encounterRef, set: setEncounterRef, autoComplete: "off" },
+                ].map(({ id, label, val, set, autoComplete }) => (
+                  <div key={id}>
+                    <label htmlFor={id} className="font-grotesk text-xs text-dusty block mb-1.5">
+                      {label}
+                    </label>
                     <input
+                      id={id}
+                      name={id}
                       type="text"
-                      value={value}
+                      autoComplete={autoComplete}
+                      value={val}
                       onChange={(e) => set(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-transparent"
+                      className="w-full border border-ruled rounded px-3 py-2 text-sm font-grotesk text-nuit bg-white outline-none focus-visible:border-clinical focus-visible:ring-2 focus-visible:ring-clinical/20 transition-colors"
                     />
-                  </label>
+                  </div>
                 ))}
               </div>
             </div>
+
             <AudioUploader onFile={handleUploadAndGenerate} />
           </div>
         )}
 
-        {/* Loading states */}
-        {step === "uploading" && (
-          <StatusCard title="Uploading audio…" />
-        )}
+        {/* ── Loading ── */}
+        {step === "uploading" && <SpinnerCard title="Uploading recording…" />}
         {step === "generating" && (
-          <StatusCard
+          <SpinnerCard
             title="Running pipeline…"
-            subtitle="Transcription → Speaker diarization → SOAP note generation"
+            sub="Transcription → Speaker diarization → SOAP note generation"
           />
         )}
 
-        {/* Step 2: Review */}
+        {/* ── Step 2: Review ── */}
         {(step === "review" || step === "approving") && draft && editedNote && (
-          <div className="space-y-4">
+          <div className="space-y-5">
+
+            {/* DRAFT banner — no border-radius, stamp-like */}
             <DraftBanner />
 
-            {/* Meta bar */}
-            <div className="bg-white rounded-xl border border-slate-200 px-6 py-3 flex items-center gap-6">
-              <MetaPill label="Patient" value={draft.ctx.patient_ref} />
-              <div className="w-px h-4 bg-slate-200" />
-              <MetaPill label="Encounter" value={draft.ctx.encounter_ref} />
-              <div className="w-px h-4 bg-slate-200" />
-              <MetaPill label="Utterances" value={String(draft.dialogue.length)} />
+            {/* Meta row */}
+            <div className="flex items-center gap-5 px-1">
+              {[
+                { label: "Patient",     val: draft.ctx.patient_ref    },
+                { label: "Encounter",   val: draft.ctx.encounter_ref  },
+                { label: "Utterances",  val: String(draft.dialogue.length) },
+              ].map(({ label, val }, i) => (
+                <span key={label} className="flex items-baseline gap-1.5">
+                  {i > 0 && <span className="text-ruled mr-3">·</span>}
+                  <span className="label-caps">{label}</span>
+                  <span className="font-grotesk text-sm text-nuit">{val}</span>
+                </span>
+              ))}
             </div>
 
-            {/* Two-column: Transcript + SOAP */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <SectionHeader title="Transcript" />
+            {/* Split: Transcript | SOAP */}
+            <div className="grid grid-cols-2 gap-5">
+              <div className="card px-6 py-6">
+                <p className="label-caps mb-5">Transcript</p>
                 <TranscriptPane utterances={draft.dialogue} />
               </div>
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <SectionHeader title="SOAP Note" badge="editable" />
+              <div className="card px-6 py-6">
+                <div className="flex items-center gap-2 mb-5">
+                  <p className="label-caps">SOAP Note</p>
+                  <span className="label-caps text-clinical/60">· editable</span>
+                </div>
                 <SOAPEditor note={editedNote} onChange={setEditedNote} />
               </div>
             </div>
@@ -242,36 +245,43 @@ export default function Home() {
           </div>
         )}
 
-        {/* Step 3: Done */}
+        {/* ── Step 3: Done ── */}
         {step === "done" && docRef && (
-          <div className="space-y-4">
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 flex items-start gap-4">
-              <div className="shrink-0 w-11 h-11 rounded-full bg-emerald-500 flex items-center justify-center text-white text-lg font-bold">
+          <div className="space-y-5">
+            <div className="card px-7 py-6 border-emerald-300 bg-emerald-50/60 flex items-start gap-5">
+              <div className="shrink-0 w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white font-black text-sm">
                 ✓
               </div>
               <div>
-                <h2 className="text-lg font-bold text-emerald-800">Note Approved &amp; Exported</h2>
-                <p className="text-sm text-emerald-700 mt-1">
-                  A FHIR R5 DocumentReference has been generated and signed off. Nothing was saved without clinician approval.
+                <p className="font-grotesk font-bold text-emerald-900 text-base">
+                  Note approved &amp; exported
+                </p>
+                <p className="font-lora text-sm text-emerald-800 mt-1 leading-relaxed">
+                  A FHIR R5 DocumentReference has been generated and signed off. Nothing left
+                  the draft state without your review.
                 </p>
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <SectionHeader title="FHIR DocumentReference" badge="JSON" />
-              <pre className="text-xs bg-slate-50 border border-slate-200 rounded-lg p-4 overflow-auto max-h-96 whitespace-pre-wrap font-mono leading-relaxed">
+            <div className="card px-7 py-6">
+              <div className="flex items-center gap-2 mb-4">
+                <p className="label-caps">FHIR DocumentReference</p>
+                <span className="label-caps text-dusty/50">· JSON</span>
+              </div>
+              <pre className="font-mono text-[12px] text-nuit/80 bg-vellum rounded p-4 overflow-auto max-h-96 leading-relaxed border border-ruled">
                 {JSON.stringify(docRef.resource, null, 2)}
               </pre>
             </div>
 
             <button
               onClick={reset}
-              className="text-sm text-blue-600 hover:underline font-medium"
+              className="label-caps text-clinical hover:underline"
             >
-              ← Start new consultation
+              ← new consultation
             </button>
           </div>
         )}
+
       </main>
     </div>
   );

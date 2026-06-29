@@ -3,52 +3,65 @@
 import { useState } from "react";
 
 interface Props {
-  onApprove: (approverName: string) => void;
+  onApprove: (name: string) => void;
   loading: boolean;
 }
 
 export default function ApproveSection({ onApprove, loading }: Props) {
   const [name, setName] = useState("");
+  const ready = name.trim().length > 0 && !loading;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="flex-1">
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-            Clinician Sign-off
+    <div className="card px-8 py-6">
+      <p className="label-caps mb-4">Clinician Sign-off</p>
+
+      <div className="flex flex-col sm:flex-row items-end gap-6">
+        <div className="flex-1 w-full">
+          <label className="block text-xs text-dusty mb-1.5 font-grotesk" htmlFor="approver-name">
+            Full name
           </label>
+          {/* Underline-only input — signature line aesthetic */}
           <input
+            id="approver-name"
+            name="clinician-name"
             type="text"
-            placeholder="Enter your full name"
+            autoComplete="name"
+            placeholder="Dr. Jane Smith"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && ready && onApprove(name.trim())}
             disabled={loading}
-            className="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent disabled:bg-slate-50 disabled:text-slate-400"
+            className="input-underline w-full text-base"
           />
         </div>
+
         <button
-          onClick={() => name.trim() && onApprove(name.trim())}
-          disabled={!name.trim() || loading}
+          onClick={() => ready && onApprove(name.trim())}
+          disabled={!ready}
+          aria-busy={loading}
           className={`
-            shrink-0 flex items-center gap-2 px-6 py-2.5 rounded-lg font-semibold text-sm shadow-sm transition-all
-            ${!name.trim() || loading
-              ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-              : "bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-emerald-200 shadow-md"
+            shrink-0 flex items-center gap-2 font-grotesk font-semibold text-sm
+            px-7 py-2.5 rounded transition-colors
+            ${ready
+              ? "bg-emerald-700 text-white hover:bg-emerald-800 shadow-sm"
+              : "bg-ruled text-dusty cursor-not-allowed"
             }
           `}
         >
           {loading ? (
             <>
-              <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin motion-reduce:animate-none" />
               Approving…
             </>
           ) : (
-            <>✓ Approve &amp; Export to FHIR</>
+            "✓ Approve & export to FHIR"
           )}
         </button>
       </div>
-      <p className="text-xs text-slate-400 mt-3">
-        By approving, you confirm this note is clinically accurate. This action creates a signed FHIR DocumentReference.
+
+      <p className="font-lora text-[13px] text-dusty mt-4 leading-relaxed">
+        By approving, you attest this note is clinically accurate. A signed FHIR R5
+        DocumentReference will be generated — this action cannot be undone.
       </p>
     </div>
   );

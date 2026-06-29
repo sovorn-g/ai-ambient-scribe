@@ -8,15 +8,15 @@ interface Props {
 }
 
 const SECTIONS: Array<{
-  key: keyof SOAPNote;
-  label: string;
+  key:    keyof SOAPNote;
+  letter: string;
+  title:  string;
   accent: string;
-  dot: string;
 }> = [
-  { key: "subjective",  label: "Subjective",  accent: "border-blue-400",   dot: "bg-blue-400"   },
-  { key: "objective",   label: "Objective",   accent: "border-purple-400", dot: "bg-purple-400" },
-  { key: "assessment",  label: "Assessment",  accent: "border-amber-400",  dot: "bg-amber-400"  },
-  { key: "plan",        label: "Plan",        accent: "border-emerald-400",dot: "bg-emerald-400"},
+  { key: "subjective", letter: "S", title: "Subjective",  accent: "border-clinical text-clinical"       },
+  { key: "objective",  letter: "O", title: "Objective",   accent: "border-purple-500 text-purple-700"   },
+  { key: "assessment", letter: "A", title: "Assessment",  accent: "border-amber-500 text-amber-700"     },
+  { key: "plan",       letter: "P", title: "Plan",        accent: "border-emerald-600 text-emerald-700" },
 ];
 
 function ClaimEditor({
@@ -29,17 +29,23 @@ function ClaimEditor({
   onRemove: () => void;
 }) {
   return (
-    <div className="flex gap-2 items-start group">
+    <div className="group flex gap-2 items-start">
       <textarea
-        className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-transparent resize-none bg-white leading-relaxed"
         rows={2}
         value={claim.text}
         onChange={(e) => onChange({ ...claim, text: e.target.value })}
+        className={`
+          flex-1 font-lora text-[14px] text-nuit leading-relaxed resize-none
+          bg-transparent border-0 border-b border-ruled
+          px-0 py-1
+          outline-none focus-visible:border-clinical focus-visible:ring-1 focus-visible:ring-clinical/30
+          transition-colors
+        `}
       />
       <button
         onClick={onRemove}
-        className="opacity-0 group-hover:opacity-100 mt-1.5 text-slate-300 hover:text-red-400 transition-opacity px-1.5 py-1 rounded"
-        title="Remove"
+        aria-label="Remove entry"
+        className="opacity-0 group-hover:opacity-100 transition-opacity text-dusty hover:text-alert text-xs pt-2 px-1 shrink-0"
       >
         ✕
       </button>
@@ -51,50 +57,52 @@ export default function SOAPEditor({ note, onChange }: Props) {
   function updateSection(key: keyof SOAPNote, claims: Claim[]) {
     onChange({ ...note, [key]: claims });
   }
-
   function updateClaim(key: keyof SOAPNote, idx: number, updated: Claim) {
     updateSection(key, note[key].map((c, i) => (i === idx ? updated : c)));
   }
-
   function removeClaim(key: keyof SOAPNote, idx: number) {
     updateSection(key, note[key].filter((_, i) => i !== idx));
   }
-
   function addClaim(key: keyof SOAPNote) {
     updateSection(key, [...note[key], { text: "", citations: [] }]);
   }
 
   return (
-    <div className="space-y-5 max-h-[520px] overflow-y-auto pr-1">
-      {SECTIONS.map(({ key, label, accent, dot }) => (
-        <div key={key} className={`border-l-4 pl-4 ${accent}`}>
-          <div className="flex items-center gap-2 mb-2">
-            <span className={`w-2 h-2 rounded-full ${dot}`} />
-            <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-              {label}
-            </h3>
+    <div className="space-y-7 overflow-y-auto max-h-[500px] pr-2">
+      {SECTIONS.map(({ key, letter, title, accent }) => {
+        const [borderClass, textClass] = accent.split(" ");
+        return (
+          <div key={key}>
+            <div className={`flex items-baseline gap-2.5 mb-3 border-b pb-1.5 ${borderClass}`}>
+              <span className={`font-grotesk font-black text-xl leading-none ${textClass}`}>
+                {letter}
+              </span>
+              <span className="label-caps">{title}</span>
+            </div>
+
+            <div className="space-y-2 pl-1">
+              {note[key].length === 0 && (
+                <p className="font-lora italic text-dusty/70 text-sm">No entries.</p>
+              )}
+              {note[key].map((claim, idx) => (
+                <ClaimEditor
+                  key={idx}
+                  claim={claim}
+                  onChange={(c) => updateClaim(key, idx, c)}
+                  onRemove={() => removeClaim(key, idx)}
+                />
+              ))}
+            </div>
+
+            <button
+              onClick={() => addClaim(key)}
+              className="mt-2 label-caps text-dusty hover:text-clinical transition-colors"
+            >
+              + add entry
+            </button>
           </div>
-          <div className="space-y-2">
-            {note[key].length === 0 && (
-              <p className="text-xs text-slate-400 italic py-1">No entries.</p>
-            )}
-            {note[key].map((claim, idx) => (
-              <ClaimEditor
-                key={idx}
-                claim={claim}
-                onChange={(c) => updateClaim(key, idx, c)}
-                onRemove={() => removeClaim(key, idx)}
-              />
-            ))}
-          </div>
-          <button
-            onClick={() => addClaim(key)}
-            className="mt-2 text-xs text-slate-400 hover:text-blue-500 font-medium transition-colors"
-          >
-            + Add entry
-          </button>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
