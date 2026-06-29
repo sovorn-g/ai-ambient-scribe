@@ -34,7 +34,7 @@ the same ambient-stream path production uses — see
 | 1 | **Context** | The dashboard hero: *"Fully local clinical AI — audio consultation to FHIR R5 note, with mandatory clinician sign-off before anything is saved."* Patient + Encounter refs are pre-filled. The **01 Upload → 02 Review → 03 Export** step bar is at step 01. |
 | 2 | **Upload** | Drop a PriMock57 `.wav` (e.g. `data/primock57/day1_consultation01.wav`). The file uploads, the step bar advances and an elapsed timer starts ticking. A spinner card reads *"Running pipeline… Transcription → Speaker diarization → SOAP note generation."* |
 | 3 | **The note falls out** | The spinner is replaced by a split view: left = **speaker-attributed transcript** (CLINICIAN / PATIENT turns with timestamps and coloured rails); right = **editable SOAP note** (S/O/A/P sections). Above both: a loud **DRAFT — requires clinician approval** banner. The meta row shows Patient · Encounter · Utterances. |
-| 4 | **Show grounding (the trust moment)** | Each SOAP claim carries a `SpanRef` citation pointing at a transcript utterance — a small `N cites` badge sits beside each grounded claim. **Hovering** (or keyboard-focusing) a claim snaps the transcript pane to the cited utterance via `scrollIntoView`, tints it amber, drops a `cited` chip beside the speaker label, and wraps the exact evidence phrase in a `<mark>` when `char_span` is present. **For multi-cite claims**, click the badge to **pin** it — an inline `◀ 2/3 ▶ ✕` navigator appears that steps through every citation (each arrow press scrolls + highlights its utterance). The pin survives mouse-off so the arrows stay clickable; hover on other claims gives a transient peek and reverts to the pinned cite on mouse-leave. This is the signature feature — the on-screen proof that every claim traces to something actually said. |
+| 4 | **Show grounding (the trust moment)** | Each SOAP claim carries a `SpanRef` citation pointing at a transcript utterance — a compact `◀ 1/X ▶` navigator sits beside each grounded claim. **Hovering** (or focusing the textarea) previews cite `1` — the transcript pane snaps to that utterance via `scrollIntoView`, tints it amber, drops a `cited` chip, and wraps the evidence phrase in a `<mark>` when `char_span` is present. **Click ◀/▶** to pin (sticky) and step through every citation — each press scrolls + highlights its utterance. A `✕` appears to unpin. The pin survives mouse-off so the arrows stay clickable. This is the signature feature — the on-screen proof that every claim traces to something actually said. |
 | 5 | **Clinician edits one field** | Click into any claim text area and edit it (or `+ add entry` / `✕` remove). The note is clearly editable; the DRAFT banner stays until sign-off. |
 | 6 | **Approve → export** | Enter approver name in the Approve section and click Approve. The view flips to a green *"Note approved & exported"* card: *"A FHIR R5 DocumentReference has been generated and signed off. Nothing left the draft state without your review."* |
 | 7 | **The receipt** | The full FHIR R5 `DocumentReference` JSON is rendered below the success card. `← new consultation` resets. |
@@ -48,8 +48,8 @@ the same ambient-stream path production uses — see
    browser viewport so the DRAFT banner and step bar stay in frame.
 4. Narrate beats 1–7 above. For beat 4, **say aloud** what each claim cites
    (read the transcript line the claim came from) while hovering the claim, then
-   **click the `N cites` badge to pin it** and step through `◀ ▶` so the viewer
-   sees every cited utterance, not just the first.
+   **click ▶** to pin + step through every cited utterance so the viewer sees
+   all the evidence, not just the first.
 5. Trim the processing wait (beat 2's spinner) but **leave a beat of it** so the
    viewer sees the pipeline is real, not pre-baked.
 6. Save as `docs/demo.mp4` (gitignored — too large for the repo; host
@@ -61,14 +61,17 @@ The Phase-5 plan (`plans/phase-5-ui.md` §5b) scoped **hover-a-claim →
 highlight-its-transcript-span** as the signature trust feature. It is wired
 end-to-end with **two coexisting modes**:
 
-- **Hover (transient)** — quick preview. Mouse over a claim (or keyboard-focus
-  the textarea) → the first citation snaps into view. Mouse off → reverts.
-- **Pin & navigate (sticky)** — click the `N cites` badge → the binding sticks.
-  An inline `◀ idx/total ▶ ✕` navigator appears beside the badge; arrows step
-  through every citation in the claim, each one scrolling + highlighting its
-  utterance. `✕` unpins. The pin survives mouse-off so the arrows stay
-  clickable — this is how multi-cite claims get fully inspected, not just the
-  first cite.
+- **Hover (transient)** — quick preview. Mouse over a claim (or focus the
+  textarea) → cite `1` snaps into view. Mouse off → reverts.
+- **Pin & navigate (sticky)** — click `◀` or `▶` → the binding sticks (pins)
+  and steps through every citation in the claim. Each press scrolls +
+  highlights its utterance. `✕` unpins. The pin survives mouse-off so the
+  arrows stay clickable — this is how multi-cite claims get fully inspected,
+  not just the first cite.
+
+The control is a single compact `◀ 1/X ▶` beside each grounded claim (with a
+`✕` shown only when pinned). No separate badge — the navigator IS the
+affordance.
 
 What `TranscriptPane` renders = `hoverCitation ?? pinned.citations[pinned.idx]`.
 Hover temporarily overrides the pinned display; mouse-off reverts to the pinned
@@ -83,11 +86,14 @@ Wiring detail:
   (`web/lib/types.ts :: Claim.citations`) into the UI.
 - `page.tsx` owns `hoverCitation: SpanRef | null` and
   `pinned: { loc, citations, idx } | null` (loc = `"${sectionKey}:${claimIdx}"`,
-  stable across text edits). A `useEffect` auto-unpins if the pinned claim is
-  removed (idx out of range / section vanished).
-- `SOAPEditor` emits `onHoverCitations` on row hover/focus and `onLeaveCitations`
-  on leave/blur; the badge is a toggle (`onTogglePin`); arrows call
-  `onCyclePinned(±1)` with modular wrap.
+  stable across text edits). `handleCyclePinned(loc, citations, delta)` clears
+  `hoverCitation` (so the pinned cite, not the hovered-first-cite, drives the
+  display after a cycle), pins fresh if needed, and applies delta with modular
+  wrap. A `useEffect` auto-unpins if the pinned claim is removed.
+- `SOAPEditor` binds mouse hover on the row and focus on the **textarea** (not
+  the row) — so clicking a navigator button doesn't re-fire hover via
+  focus-capture and override the cycle. `◀`/`▶` call `onCyclePinned(±1)`;
+  `✕` calls `onUnpin`. Arrows are real buttons (keyboard-accessible).
 - `TranscriptPane` per-row `useEffect` calls
   `scrollIntoView({ block: "center", behavior: "smooth" })` on the cited
   utterance — the *auto-scroll is the load-bearing part*: a long scrollable
@@ -97,9 +103,9 @@ Wiring detail:
   lands on the phrase, not just the utterance. Out-of-range / null spans fall
   back to whole-utterance tint.
 
-So the money shot lands on screen, not just in narration: the clinician pins a
-Plan claim about *metformin 500mg*, steps `▶`, and the transcript snaps to each
-clinician utterance that supports it, with the evidence phrase itself
+So the money shot lands on screen, not just in narration: the clinician hovers
+a Plan claim about *metformin 500mg*, clicks `▶`, and the transcript snaps to
+each clinician utterance that supports it, with the evidence phrase itself
 highlighted.
 
 ## What the demo proves (acceptance mapping)

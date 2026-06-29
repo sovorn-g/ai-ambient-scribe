@@ -226,18 +226,23 @@ export default function Home() {
   function handleLeaveCitations() {
     setHoverCitation(null);
   }
-  function handleTogglePin(loc: string, citations: SpanRef[]) {
-    // Click the badge → pin (sticky). Click again / click ✕ → unpin.
-    setPinned((prev) =>
-      prev && prev.loc === loc ? null : { loc, citations, idx: 0 }
-    );
-  }
-  function handleCyclePinned(delta: number) {
+  function handleCyclePinned(loc: string, citations: SpanRef[], delta: number) {
+    // Critical: clear hoverCitation so the *pinned* cite (not the hovered
+    // first-cite) drives the display after the cycle. Without this, ▶/◀
+    // appear to do nothing because hoverCitation overrides pinned in the
+    // activeCitation computation.
+    setHoverCitation(null);
     setPinned((prev) => {
-      if (!prev || prev.citations.length === 0) return prev;
-      const n = prev.citations.length;
-      return { ...prev, idx: (prev.idx + delta + n) % n };
+      // If pinning fresh (from a hover-preview, no existing pin on this loc),
+      // start at idx 0 then apply delta so the first ▶ jumps to the 2nd cite.
+      const base = prev && prev.loc === loc ? prev : { loc, citations, idx: 0 };
+      const n = base.citations.length;
+      if (n === 0) return base;
+      return { ...base, idx: (base.idx + delta + n) % n };
     });
+  }
+  function handleUnpin() {
+    setPinned(null);
   }
 
   // Auto-unpin if the pinned claim was removed (idx out of range) or its
@@ -425,8 +430,8 @@ export default function Home() {
                   onLeaveCitations={handleLeaveCitations}
                   pinnedLoc={pinned?.loc ?? null}
                   pinnedIdx={pinned?.idx ?? 0}
-                  onTogglePin={handleTogglePin}
                   onCyclePinned={handleCyclePinned}
+                  onUnpin={handleUnpin}
                 />
               </div>
             </div>
