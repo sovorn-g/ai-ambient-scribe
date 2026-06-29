@@ -7,6 +7,15 @@ interface Props {
   onChange: (note: SOAPNote) => void;
   onHoverCitations: (citations: SpanRef[]) => void;
   onLeaveCitations: () => void;
+  // Pin/navigate state (Phase-5b multi-cite navigation):
+  //   pinnedLoc matches "${key}:${idx}" of the claim that's currently pinned.
+  //   Clicking the "N cites" badge toggles the pin on/off for that claim.
+  //   When pinned, an inline ◀ idx/total ▶ ✕ navigator appears beside the
+  //   badge and survives mouse-off so the user can step through every cite.
+  pinnedLoc: string | null;
+  pinnedIdx: number;
+  onTogglePin: (loc: string, citations: SpanRef[]) => void;
+  onCyclePinned: (delta: number) => void;
 }
 
 const SECTIONS: Array<{
@@ -23,25 +32,40 @@ const SECTIONS: Array<{
 
 function ClaimEditor({
   claim,
+  loc,
+  pinnedLoc,
+  pinnedIdx,
   onChange,
   onRemove,
   onHoverCitations,
   onLeaveCitations,
+  onTogglePin,
+  onCyclePinned,
 }: {
   claim: Claim;
+  loc: string;
+  pinnedLoc: string | null;
+  pinnedIdx: number;
   onChange: (c: Claim) => void;
   onRemove: () => void;
   onHoverCitations: (citations: SpanRef[]) => void;
   onLeaveCitations: () => void;
+  onTogglePin: (loc: string, citations: SpanRef[]) => void;
+  onCyclePinned: (delta: number) => void;
 }) {
   const citeCount = claim.citations.length;
+  const isPinnedHere = pinnedLoc === loc;
+
+  // Navigator buttons stop click propagation so pressing ◀/▶/✕ doesn't blur
+  // the textarea in a way that interferes, and so the row's onMouseLeave
+  // doesn't fire from the bubbling target. (They're inside the row, so leave
+  // only fires when the pointer actually exits the row — fine. We still stop
+  // propagation on toggle/cycle to keep the pin semantics explicit.)
   return (
     <div
       className="group flex gap-2 items-start"
-      // Hover or keyboard focus on the claim fires the citation binding.
-      // We emit on hover-enter AND focus (so keyboard users get it too),
-      // and clear on hover-leave / blur. Editing the text doesn't clear
-      // the citation (it stays bound until the cursor leaves the row).
+      // Hover or keyboard focus on the claim fires the *transient* citation
+      // preview. Pinning is a separate click affordance on the badge below.
       onMouseEnter={() => onHoverCitations(claim.citations)}
       onMouseLeave={() => onLeaveCitations()}
       onFocusCapture={() => onHoverCitations(claim.citations)}
@@ -59,20 +83,95 @@ function ClaimEditor({
           transition-colors
         `}
       />
-      {/* Citation provenance badge — the affordance that says "this claim
-          is grounded." Hovering the row (or focusing the textarea) lights
-          up the cited transcript utterance on the left pane. */}
+
+      {/* Citation provenance + navigator.
+          • Not pinned: "N cites" badge — click to pin (sticky). Hovering the
+            row still gives the transient first-cite preview.
+          • Pinned here: badge + inline ◀ idx/total ▶ ✕. Arrows step through
+            every citation in the claim; each step scrolls + highlights the
+            matching utterance. ✕ unpins. The navigator survives mouse-off so
+            the user can click the arrows without losing the binding. */}
       {citeCount > 0 && (
-        <span
-          className="mt-1 shrink-0 font-mono text-[9px] tracking-widest uppercase
-                     px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200
-                     cursor-help"
-          title={`${citeCount} transcript span${citeCount > 1 ? "s" : ""} cited by this claim — hover to highlight`}
-          aria-label={`${citeCount} citation${citeCount > 1 ? "s" : ""}`}
-        >
-          {citeCount} cite{citeCount > 1 ? "s" : ""}
-        </span>
+        <div className="mt-1 shrink-0 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePin(loc, claim.citations);
+            }}
+            className={`font-mono text-[9px] tracking-widest uppercase
+                        px-1.5 py-0.5 rounded border transition-colors
+                        ${
+                          isPinnedHere
+                            ? "bg-amber-200 text-amber-900 border-amber-400"
+                            : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                        }`}
+            title={
+              isPinnedHere
+                ? "Pinned — click to unpin"
+                : `${citeCount} transcript span${citeCount > 1 ? "s" : ""} cited — click to pin & navigate`
+            }
+            aria-pressed={isPinnedHere}
+            aria-label={`${citeCount} citation${citeCount > 1 ? "s" : ""}${
+              isPinnedHere ? " (pinned)" : ""
+            }`}
+          >
+            {citeCount} cite{citeCount > 1 ? "s" : ""}
+          </button>
+
+          {isPinnedHere && (
+            <span
+              className="flex items-center gap-0.5 font-mono text-[9px] tracking-widest uppercase
+                         px-1 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200"
+              role="group"
+              aria-label={`Citation navigator, ${pinnedIdx + 1} of ${citeCount}`}
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCyclePinned(-1);
+                }}
+                className="px-1 hover:text-amber-900 disabled:opacity-30 disabled:cursor-not-allowed"
+                disabled={citeCount <= 1}
+                aria-label="Previous citation"
+                title="Previous citation"
+              >
+                ◀
+              </button>
+              <span className="tabular-nums px-0.5 select-none">
+                {pinnedIdx + 1}/{citeCount}
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCyclePinned(+1);
+                }}
+                className="px-1 hover:text-amber-900 disabled:opacity-30 disabled:cursor-not-allowed"
+                disabled={citeCount <= 1}
+                aria-label="Next citation"
+                title="Next citation"
+              >
+                ▶
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTogglePin(loc, claim.citations);
+                }}
+                className="ml-0.5 px-1 hover:text-alert"
+                aria-label="Unpin citation"
+                title="Unpin"
+              >
+                ✕
+              </button>
+            </span>
+          )}
+        </div>
       )}
+
       <button
         onClick={onRemove}
         aria-label="Remove entry"
@@ -89,6 +188,10 @@ export default function SOAPEditor({
   onChange,
   onHoverCitations,
   onLeaveCitations,
+  pinnedLoc,
+  pinnedIdx,
+  onTogglePin,
+  onCyclePinned,
 }: Props) {
   function updateSection(key: keyof SOAPNote, claims: Claim[]) {
     onChange({ ...note, [key]: claims });
@@ -124,10 +227,15 @@ export default function SOAPEditor({
                 <ClaimEditor
                   key={idx}
                   claim={claim}
+                  loc={`${key}:${idx}`}
+                  pinnedLoc={pinnedLoc}
+                  pinnedIdx={pinnedIdx}
                   onChange={(c) => updateClaim(key, idx, c)}
                   onRemove={() => removeClaim(key, idx)}
                   onHoverCitations={onHoverCitations}
                   onLeaveCitations={onLeaveCitations}
+                  onTogglePin={onTogglePin}
+                  onCyclePinned={onCyclePinned}
                 />
               ))}
             </div>

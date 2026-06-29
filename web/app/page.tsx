@@ -144,10 +144,20 @@ export default function Home() {
   const [error,        setError]        = useState<string | null>(null);
   const [timerStart,   setTimerStart]   = useState<number | null>(null);
   const [timerEnd,     setTimerEnd]     = useState<number | null>(null);
-  // Phase-5b hover-highlight: the single active citation the SOAP editor is
-  // currently pointing at. Bound to the *first* citation of the hovered claim
-  // (multi-cite claims scroll to the first; TranscriptPane tints the match).
-  const [activeCitation, setActiveCitation] = useState<SpanRef | null>(null);
+  // Phase-5b citation binding. Two coexisting modes:
+  //   • hoverCitation — transient preview on mouse-over / focus. Cleared on leave.
+  //   • pinned        — sticky navigator state after clicking the "N cites"
+  //                     badge. Survives mouse-off so the ◀/▶ arrows stay
+  //                     clickable; this is how multi-cite claims get navigated.
+  // What TranscriptPane renders = hover ?? pinned.active. Hover overrides the
+  // pinned display transiently; mouse-off reverts to the pinned citation.
+  const [hoverCitation, setHoverCitation] = useState<SpanRef | null>(null);
+  const [pinned,        setPinned]        = useState<{
+    loc: string;            // "${sectionKey}:${claimIdx}" — stable across text edits
+    citations: SpanRef[];   // captured at pin time
+    idx: number;            // current cite within citations
+  } | null>(null);
+  const activeCitation = hoverCitation ?? (pinned ? pinned.citations[pinned.idx] ?? null : null);
 
   function friendlyError(e: unknown): string {
     const msg = e instanceof Error ? e.message : String(e);
@@ -202,14 +212,47 @@ export default function Home() {
     setError(null);
     setTimerStart(null);
     setTimerEnd(null);
-    setActiveCitation(null);
+    setHoverCitation(null);
+    setPinned(null);
   }
 
+  // ── Citation binding handlers ──────────────────────────────────────────────
   function handleHoverCitations(citations: SpanRef[]) {
-    // First citation drives both the scroll target and the char_span <mark>.
-    // An empty array (e.g. an ungrounded manually-added claim) clears state.
-    setActiveCitation(citations.length > 0 ? citations[0] : null);
+    // Hover preview: show the *first* cite of the hovered claim. Empty array
+    // (e.g. an ungrounded manually-added claim) clears the hover overlay only
+    // — the pinned navigator, if any, is untouched.
+    setHoverCitation(citations.length > 0 ? citations[0] : null);
   }
+  function handleLeaveCitations() {
+    setHoverCitation(null);
+  }
+  function handleTogglePin(loc: string, citations: SpanRef[]) {
+    // Click the badge → pin (sticky). Click again / click ✕ → unpin.
+    setPinned((prev) =>
+      prev && prev.loc === loc ? null : { loc, citations, idx: 0 }
+    );
+  }
+  function handleCyclePinned(delta: number) {
+    setPinned((prev) => {
+      if (!prev || prev.citations.length === 0) return prev;
+      const n = prev.citations.length;
+      return { ...prev, idx: (prev.idx + delta + n) % n };
+    });
+  }
+
+  // Auto-unpin if the pinned claim was removed (idx out of range) or its
+  // section vanished. Edits that only change text preserve the citations
+  // array reference, so day-to-day typing doesn't trigger this.
+  useEffect(() => {
+    if (!pinned || !editedNote) return;
+    const colonIdx = pinned.loc.indexOf(":");
+    const sectionKey = pinned.loc.slice(0, colonIdx) as keyof SOAPNote;
+    const claimIdx = Number.parseInt(pinned.loc.slice(colonIdx + 1), 10);
+    const section = editedNote[sectionKey];
+    if (!Array.isArray(section) || claimIdx < 0 || claimIdx >= section.length) {
+      setPinned(null);
+    }
+  }, [editedNote, pinned]);
 
   return (
     <div className="min-h-screen bg-vellum">
@@ -363,7 +406,7 @@ export default function Home() {
               <div className="card px-6 py-6">
                 <div className="flex items-center gap-2 mb-5">
                   <p className="label-caps">Transcript</p>
-                  <span className="label-caps text-dusty/50">· hover a claim →</span>
+                  <span className="label-caps text-dusty/50">· hover or pin a claim →</span>
                 </div>
                 <TranscriptPane
                   utterances={draft.dialogue}
@@ -379,7 +422,11 @@ export default function Home() {
                   note={editedNote}
                   onChange={setEditedNote}
                   onHoverCitations={handleHoverCitations}
-                  onLeaveCitations={() => setActiveCitation(null)}
+                  onLeaveCitations={handleLeaveCitations}
+                  pinnedLoc={pinned?.loc ?? null}
+                  pinnedIdx={pinned?.idx ?? 0}
+                  onTogglePin={handleTogglePin}
+                  onCyclePinned={handleCyclePinned}
                 />
               </div>
             </div>
