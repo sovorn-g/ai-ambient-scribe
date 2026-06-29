@@ -40,7 +40,7 @@ from eval.report import render_bakeoff_report
 
 SHERPA_DIR = ROOT / "data" / ".cache" / "sherpa-models"
 SEG_MODEL = str(SHERPA_DIR / "sherpa-onnx-pyannote-segmentation-3-0" / "model.onnx")
-EMB_MODEL = str(SHERPA_DIR / "3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx")
+EMB_MODEL = str(SHERPA_DIR / "nemo_en_titanet_small.onnx")
 
 
 def _ok(label: str) -> None:
@@ -95,7 +95,7 @@ def main() -> int:
     assert len(segs) > 0, "ASR produced no segments"
     _ok(f"transcribed {len(segs)} segments")
 
-    _section("2. Diarization (sherpa-onnx pyannote + CAM++)")
+    _section("2. Diarization (sherpa-onnx pyannote + TitaNet-Small)")
     t0 = time.time()
     turns = scribe._dialogue_extractor._diarizer.diarize(item.audio)
     print(f"  {len(turns)} turns in {time.time()-t0:.1f}s")
@@ -178,7 +178,16 @@ def main() -> int:
         subprocess.run(["ollama", "pull", tag], check=False,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    host = ModelHost(loader=_loader, evictor=lambda _tag: None)
+    def _evictor(tag: str) -> None:
+        # keep_alive=0 tells Ollama to unload the model from GPU/RAM immediately.
+        import httpx
+        try:
+            httpx.post("http://localhost:11434/api/generate",
+                       json={"model": tag, "keep_alive": 0}, timeout=30)
+        except Exception:
+            pass  # eviction is best-effort; bakeoff continues if Ollama is slow
+
+    host = ModelHost(loader=_loader, evictor=_evictor)
 
     t0 = time.time()
     bake = harness.run_bakeoff(

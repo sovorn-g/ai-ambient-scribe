@@ -30,7 +30,7 @@ from eval.datasets.primock57 import PriMock57Dataset
 
 SHERPA_DIR = ROOT / "data" / ".cache" / "sherpa-models"
 SEG_MODEL = str(SHERPA_DIR / "sherpa-onnx-pyannote-segmentation-3-0" / "model.onnx")
-EMB_MODEL = str(SHERPA_DIR / "3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx")
+EMB_MODEL = str(SHERPA_DIR / "nemo_en_titanet_small.onnx")
 CACHE = ROOT / "data" / ".cache" / "debug_dialogue.json"
 
 
