@@ -45,10 +45,13 @@ def _build_diarizer(cfg: Any) -> Diarizer:
 
     return SherpaOnnxDiarizer(
         model_path=model_path,
+        segmentation_model_path=dcfg.get("segmentation_model_path"),
         num_threads=int(dcfg.get("num_threads", 1)),
         num_clusters=int(dcfg.get("num_clusters", -1)),
         threshold=float(dcfg.get("threshold", 0.5)),
         sample_rate=int(dcfg.get("sample_rate", 16000)),
+        min_duration_on=float(dcfg.get("min_duration_on", 0.3)),
+        min_duration_off=float(dcfg.get("min_duration_off", 0.5)),
     )
 
 
@@ -65,18 +68,42 @@ def _build_note_generator(cfg: Any) -> NoteGenerator:
 
 
 def _build_audio_source(cfg: Any) -> AudioSource:
-    """Phase 0/eval: FileAudioSource. Phase 5 fills mic/stream."""
+    """Phase 0/eval: FileAudioSource. Phase 5: mic/stream when audio_source='mic'."""
+    source_type = cfg.get("audio_source", "file")
+    if source_type == "mic":
+        from scribe.runtime.audio import MicStreamAudioSource
+        return MicStreamAudioSource(cfg.get("audio_path", ""))
     return FileAudioSource(cfg["audio_path"])
 
 
 def _build_draft_store(cfg: Any) -> DraftStore:
-    """Phase 0: in-memory. Phase 5 fills sqlite."""
+    """Phase 0: in-memory. Phase 5: sqlite when draft_store='sqlite'."""
+    store_type = cfg.get("draft_store", "memory")
+    if store_type == "sqlite":
+        from scribe.app.drafts import SqliteDraftStore
+        return SqliteDraftStore(cfg.get("db_path", "drafts.db"))
     return InMemoryDraftStore()
 
 
 def _build_model_host(cfg: Any) -> ModelHost:
-    """Phase 0: trivial. Phase 4 deepens (multi-model residency for bake-off)."""
-    return ModelHost(cfg.get("model_host", {}))
+    """Phase 4: deepened with injected loader/evictor callbacks + memory budget.
+
+    cfg.model_host may carry:
+      * ``loader`` / ``evictor``: callables (model_tag) -> None. If absent,
+        the host is a no-op tracker (CI/test path).
+      * ``memory_budget_gb``: advisory budget, default 16.0.
+
+    Real Ollama wiring (e.g. ``ollama pull`` / unload) is injected here; the
+    bake-off harness calls ``ensure_resident`` per model so the previous
+    resident is evicted before the next loads.
+    """
+    mcfg = cfg.get("model_host", {}) or {}
+    return ModelHost(
+        mcfg,
+        loader=mcfg.get("loader"),
+        evictor=mcfg.get("evictor"),
+        memory_budget_gb=float(mcfg.get("memory_budget_gb", 16.0)),
+    )
 
 
 def _build_dialogue_extractor(cfg: Any) -> DialogueExtractor:

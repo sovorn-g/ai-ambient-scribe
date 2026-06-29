@@ -39,3 +39,21 @@ class FileAudioSource(AudioSource):
     @property
     def identifier(self) -> str:
         return f"file:{self.path}"
+
+
+class MicStreamAudioSource(AudioSource):
+    """Demo adapter: feeds a recording into the live pipeline as if it were mic input.
+
+    Phase 5a stub: wraps a file path as a stream source. In a real deployment
+    this would capture from the system microphone in real time.
+    """
+
+    def __init__(self, path: str = "") -> None:
+        self.path = str(path)
+
+    def load(self) -> Audio:
+        return Audio(source="stream", path=self.path if self.path else None)
+
+    @property
+    def identifier(self) -> str:
+        return f"mic:{self.path}"

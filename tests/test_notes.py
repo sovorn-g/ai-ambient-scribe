@@ -88,7 +88,10 @@ def test_fabricated_utterance_id_mixed_with_valid_keeps_valid_citation():
 
 # ── CitationValidator — behavior 3: out-of-range char_span ──────────────────
 
-def test_out_of_range_char_span_drops_citation():
+def test_out_of_range_char_span_strips_span_keeps_citation():
+    """An out-of-bounds char_span strips the span but keeps the citation —
+    the utterance_id is the grounding guarantee; char_span is UI sugar that
+    LLMs cannot reliably produce (they emit global transcript offsets)."""
     dialogue = _dialogue(("u0001", "short"))  # len=5
     note = _soap(
         "subjective",
@@ -98,7 +101,10 @@ def test_out_of_range_char_span_drops_citation():
 
     result = CitationValidator().validate(note, dialogue)
 
-    assert isinstance(result, Violations)
+    assert isinstance(result, GroundedNote)
+    assert len(result.subjective) == 1
+    assert result.subjective[0].citations[0].utterance_id == "u0001"
+    assert result.subjective[0].citations[0].char_span is None
 
 
 def test_valid_char_span_passes():
@@ -114,7 +120,8 @@ def test_valid_char_span_passes():
     assert isinstance(result, GroundedNote)
 
 
-def test_negative_char_span_start_drops_citation():
+def test_negative_char_span_start_strips_span_keeps_citation():
+    """A negative char_span start is invalid → strip the span, keep the citation."""
     dialogue = _dialogue(("u0001", "some text"))
     note = _soap(
         "subjective",
@@ -124,7 +131,8 @@ def test_negative_char_span_start_drops_citation():
 
     result = CitationValidator().validate(note, dialogue)
 
-    assert isinstance(result, Violations)
+    assert isinstance(result, GroundedNote)
+    assert result.subjective[0].citations[0].char_span is None
 
 
 # ── CitationValidator — behavior 4: claim with zero citations ────────────────

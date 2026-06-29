@@ -11,9 +11,11 @@ from typing import Any, Callable
 
 from scribe.app.scribe import Scribe
 from scribe.domain.types import EvalReport, GroundedNote, PatientContext
+from eval.bakeoff import BakeoffReport
 from eval.datasets.base import Dataset
 from eval.metrics.completeness import note_to_text, score_rouge
 from eval.metrics.wer import score_wer
+from eval.models import ModelRegistry, ModelSpec
 
 _UNSET: Any = object()
 
@@ -106,6 +108,36 @@ class EvalHarness:
                 metrics["grounding"]["entity_grounding"] = _mean(entity_gnd)
 
         return EvalReport(metrics=metrics)
+
+    def run_bakeoff(
+        self,
+        dataset: Dataset,
+        registry: ModelRegistry,
+        *,
+        build_scribe_for_model: Callable[[ModelSpec], Scribe],
+        model_host: Any,
+    ) -> BakeoffReport:
+        """Loop the registry → one ``EvalReport`` per model.
+
+        For each ``ModelSpec``:
+          1. ``model_host.ensure_resident(spec.ollama_tag)`` evicts the previous
+             model before loading the next (sequential residency within 16GB).
+          2. ``build_scribe_for_model(spec)`` wires a fresh ``Scribe`` whose
+             ``LLMClient`` is pointed at ``spec.ollama_tag`` — the only axis
+             that varies. Grounding + prompt logic are shared (locality rule).
+          3. A child ``EvalHarness`` runs the dataset and produces one row.
+
+        WER/DER are model-invariant and appear in every per-model report; the
+        renderer surfaces them once. Grounding + completeness are the real
+        per-model comparison.
+        """
+        per_model: dict[str, EvalReport] = {}
+        for spec in registry.models:
+            model_host.ensure_resident(spec.ollama_tag)
+            scribe = build_scribe_for_model(spec)
+            child = EvalHarness(scribe, self._ctx, nlp=self._nlp)
+            per_model[spec.model_id] = child.run(dataset)
+        return BakeoffReport(registry=registry, per_model=per_model)
 
 
 def _dialogue_to_text(dialogue) -> str:

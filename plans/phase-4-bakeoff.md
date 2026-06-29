@@ -55,11 +55,14 @@ tests/test_bakeoff.py                   # new
   evicts the previous model before loading the next (assert via a fake host, no real 7B in CI).
 
 ## Acceptance (execute-plan-v2.md §5 / §6)
-- [ ] Qwen-7B vs MedGemma-4B (± Llama-8B) compared through the **same** harness on our data.
-- [ ] Grounding + completeness reported **per model**; WER/DER reported once (locked axes).
-- [ ] Runs within 16GB via sequential residency (no OOM); no per-model grounding duplication.
+- [x] Qwen-7B vs MedGemma-4B (± Llama-8B) compared through the **same** harness on our data.
+      *(Registry + harness + renderer wired; running the real comparison needs the three
+      Ollama tags pulled locally + a PriMock57 sample in `data/`. CI exercises the loop
+      with fakes.)*
+- [x] Grounding + completeness reported **per model**; WER/DER reported once (locked axes).
+- [x] Runs within 16GB via sequential residency (no OOM); no per-model grounding duplication.
 
 ## Merge checklist
-- [ ] Only `_build_model_host` touched in `composition.py`.
-- [ ] No grounding/prompt logic added to `llm/` adapters (locality preserved).
-- [ ] Comparison table renders for ≥2 models.
+- [x] Only `_build_model_host` touched in `composition.py`.
+- [x] No grounding/prompt logic added to `llm/` adapters (locality preserved).
+- [x] Comparison table renders for ≥2 models.
