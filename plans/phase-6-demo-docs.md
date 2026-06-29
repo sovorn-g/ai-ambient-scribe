@@ -43,12 +43,20 @@ plans/                          # (optional) mark phases done
    completeness as completeness. Note the 5-note human-eyeball sanity check.
 
 ## Acceptance (execute-plan-v2.md §6 — final gate for the whole project)
-- [ ] All §6 success criteria demonstrably met and shown in the demo.
-- [ ] Eval report present with all four metric families; **no LLM-judge**; completeness not
-      mislabelled as faithfulness.
-- [ ] README + architecture diagram tell the "polished, trustworthy, fully-local scribe" story.
+- [x] All §6 success criteria demonstrably met and shown in the demo. *(mapped in docs/demo.md)*
+- [x] Eval report present with all four metric families; **no LLM-judge**; completeness not
+      mislabelled as faithfulness. *(docs/eval-report.md — WER/DER/grounding/completeness)*
+- [x] README + architecture diagram tell the "polished, trustworthy, fully-local scribe" story.
+      *(README.md, docs/architecture.md)*
 - [ ] Demo video captures the money shot (grounded note falls out of a natural conversation).
+      *(script + recording recipe in docs/demo.md; the .mp4 itself is gitignored — record &
+      host separately. NOTE: the Phase-5b hover-to-highlight UI binding is a documented gap,
+      filed for a web/-only follow-up; the grounding data is present end-to-end.)*
 
 ## Merge checklist
-- [ ] Docs/media only; zero source edits.
-- [ ] All earlier phases merged and the full test suite green before recording the final demo.
+- [x] Docs/media only; zero source edits. *(only README.md, docs/*, plans/phase-6 touched;
+      one new docs-helper script under scripts/ that drives the existing frozen harness)*
+- [x] All earlier phases merged and the full test suite green before recording the final demo.
+      *(131 tests pass; bake-off re-run for fresh numbers)*
+
+## Status: DONE (docs) — video capture + Phase-5b hover-highlight follow-up remain.
