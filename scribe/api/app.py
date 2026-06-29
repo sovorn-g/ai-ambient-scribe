@@ -7,12 +7,15 @@ business logic lives here.
 
 from __future__ import annotations
 
+import logging
 import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+
+logger = logging.getLogger("scribe.api")
 
 from scribe.api.schemas import (
     ApproveRequest,
@@ -42,13 +45,21 @@ from scribe.domain.types import (
 async def lifespan(app: FastAPI):
     # Only wire real adapters if tests haven't pre-injected a fake scribe.
     if _scribe_instance is None:
-        from scribe.composition import build_scribe
-        set_scribe(build_scribe({
-            "audio_source": "mic",
-            "audio_path": "",
-            "draft_store": "sqlite",
-            "db_path": "drafts.db",
-        }))
+        logger.info("[startup] wiring Scribe adapters (Whisper + Ollama + SQLite)…")
+        try:
+            from scribe.composition import build_scribe
+            set_scribe(build_scribe({
+                "audio_source": "mic",
+                "audio_path": "",
+                "draft_store": "sqlite",
+                "db_path": "drafts.db",
+            }))
+            logger.info("[startup] Scribe ready")
+        except Exception as exc:
+            logger.error("[startup] build_scribe FAILED — %s: %s", type(exc).__name__, exc, exc_info=True)
+            logger.warning("[startup] server will start but /drafts/* endpoints will error until fixed")
+    else:
+        logger.info("[startup] using pre-injected Scribe (test/dev mode)")
     yield
 
 
@@ -140,6 +151,11 @@ def _note_dto_to_domain(dto: SOAPNoteDTO) -> SOAPNote:
 
 
 # ── endpoints ─────────────────────────────────────────────────────────────────
+
+@app.get("/health")
+def health() -> dict:
+    return {"ok": True, "scribe_ready": _scribe_instance is not None}
+
 
 @app.post("/audio/upload")
 async def upload_audio(file: UploadFile = File(...)) -> dict:

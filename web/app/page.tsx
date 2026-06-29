@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DraftBanner from "@/components/DraftBanner";
 import TranscriptPane from "@/components/TranscriptPane";
 import SOAPEditor from "@/components/SOAPEditor";
 import AudioUploader from "@/components/AudioUploader";
 import ApproveSection from "@/components/ApproveSection";
-import { uploadAudio, generateDraft, editDraft, approveDraft } from "@/lib/api";
+import { uploadAudio, generateDraft, editDraft, approveDraft, checkHealth } from "@/lib/api";
 import type { DraftResponse, DocumentRefResponse, SOAPNote } from "@/lib/types";
 
 type Step = "idle" | "uploading" | "generating" | "review" | "approving" | "done" | "error";
@@ -102,6 +102,11 @@ export default function Home() {
   const [patientRef,   setPatientRef]   = useState("patient-001");
   const [encounterRef, setEncounterRef] = useState("encounter-001");
   const [step,         setStep]         = useState<Step>("idle");
+  const [apiStatus, setApiStatus]       = useState<"checking" | "ok" | "down">("checking");
+
+  useEffect(() => {
+    checkHealth().then((h) => setApiStatus(h?.ok ? "ok" : "down"));
+  }, []);
   const [draft,        setDraft]        = useState<DraftResponse | null>(null);
   const [editedNote,   setEditedNote]   = useState<SOAPNote | null>(null);
   const [docRef,       setDocRef]       = useState<DocumentRefResponse | null>(null);
@@ -169,9 +174,28 @@ export default function Home() {
               <span className="font-grotesk text-white/40 text-xs tracking-wide">clinical AI</span>
             </div>
           </div>
-          <span className="font-mono text-[10px] text-white/40 tracking-widest uppercase">
-            Local · M4 · FHIR R5
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-[10px] text-white/40 tracking-widest uppercase">
+              Local · M4 · FHIR R5
+            </span>
+            <div
+              className="flex items-center gap-1.5"
+              title={
+                apiStatus === "checking" ? "Checking API…"
+                : apiStatus === "ok" ? "API running at localhost:8000"
+                : "API unreachable — run: uvicorn scribe.api.app:app --reload"
+              }
+            >
+              <span className={`w-2 h-2 rounded-full ${
+                apiStatus === "checking" ? "bg-white/30 animate-pulse"
+                : apiStatus === "ok"      ? "bg-emerald-400"
+                : "bg-red-400"
+              }`} />
+              <span className="font-mono text-[10px] text-white/40">
+                {apiStatus === "checking" ? "API…" : apiStatus === "ok" ? "API" : "API ✕"}
+              </span>
+            </div>
+          </div>
         </div>
       </header>
 

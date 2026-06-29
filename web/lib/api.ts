@@ -2,6 +2,16 @@ import type { DraftResponse, DocumentRefResponse, SOAPNote } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+export async function checkHealth(): Promise<{ ok: boolean; scribe_ready: boolean } | null> {
+  try {
+    const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 export async function uploadAudio(file: File): Promise<{ path: string; filename: string; size: number }> {
   const form = new FormData();
   form.append("file", file);
