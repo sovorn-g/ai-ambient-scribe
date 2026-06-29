@@ -24,6 +24,7 @@ from scribe.domain.types import (
     TimeSpan,
     TranscriptSeg,
     Utterance,
+    WordTiming,
 )
 from scribe.dialogue.aligner import align
 from scribe.dialogue.diarizer.base import Diarizer, NullDiarizer
@@ -35,6 +36,18 @@ from scribe.dialogue.roles import apply_role_map, guess_role, label_roles
 # ─────────────────────────────────────────────────────────────────────────────
 def _seg(text: str, start: float, end: float) -> TranscriptSeg:
     return TranscriptSeg(text=text, time_span=TimeSpan(start=start, end=end))
+
+
+def _word(word: str, start: float, end: float) -> WordTiming:
+    return WordTiming(word=word, time_span=TimeSpan(start=start, end=end))
+
+
+def _seg_with_words(words: list[tuple[str, float, float]]) -> TranscriptSeg:
+    """Build a TranscriptSeg with word_timings from (word, start, end) tuples."""
+    wt = [_word(w, s, e) for w, s, e in words]
+    text = " ".join(w.word for w in wt).strip()
+    span = TimeSpan(start=wt[0].time_span.start, end=wt[-1].time_span.end)
+    return TranscriptSeg(text=text, time_span=span, word_timings=wt)
 
 
 def _turn(speaker_id: str, start: float, end: float) -> SpeakerTurn:
@@ -74,16 +87,28 @@ class TestAlignerOverlap:
         d = align(segs, turns)
         assert d.utterances[0].speaker_id == "spk:B"
 
-    def test_segment_in_gap_gets_unknown_speaker(self):
-        """Segment falls between turns → speaker_id='spk:unknown'."""
+    def test_segment_in_gap_assigned_to_nearest_turn(self):
+        """Segment falls after all turns → nearest-neighbour fallback assigns it
+        to the closest turn rather than leaving it spk:unknown."""
         segs = [_seg("orphan", 12.0, 13.0)]
         turns = [
             _turn("spk:A", 0.0, 5.0),
             _turn("spk:B", 5.0, 10.0),
         ]
         d = align(segs, turns)
-        assert d.utterances[0].speaker_id == "spk:unknown"
-        assert d.utterances[0].role == Role.UNKNOWN
+        # midpoint of orphan = 12.5; midpoint of spk:B = 7.5 → nearest is spk:B
+        assert d.utterances[0].speaker_id == "spk:B"
+
+    def test_segment_in_gap_between_turns_assigned_to_nearest(self):
+        """Segment sits between two adjacent turns — assigned to whichever midpoint is closer."""
+        segs = [_seg("filler", 5.5, 5.6)]  # 0.1 s gap between spk:A (0-5) and spk:B (6-10)
+        turns = [
+            _turn("spk:A", 0.0, 5.0),
+            _turn("spk:B", 6.0, 10.0),
+        ]
+        d = align(segs, turns)
+        # midpoint of filler = 5.55; midpoint of spk:A = 2.5, spk:B = 8.0 → nearest is spk:B
+        assert d.utterances[0].speaker_id == "spk:B"
 
     def test_empty_text_segments_dropped_even_with_turns(self):
         """Slice-0 dropped empties in the no-turn branch; Phase 1 keeps that
@@ -121,6 +146,54 @@ class TestAlignerOverlap:
     def test_empty_input_yields_empty_dialogue(self):
         d = align([], turns=[_turn("spk:A", 0.0, 1.0)])
         assert d.utterances == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Aligner — word-level speaker split
+# ─────────────────────────────────────────────────────────────────────────────
+class TestAlignerWordSplit:
+    def test_single_speaker_segment_unchanged(self):
+        """All words in one turn → one utterance, no split."""
+        seg = _seg_with_words([(" hello", 0.0, 0.4), (" world", 0.4, 0.8)])
+        turns = [_turn("spk:A", 0.0, 1.0)]
+        d = align([seg], turns)
+        assert len(d.utterances) == 1
+        assert d.utterances[0].speaker_id == "spk:A"
+
+    def test_two_speaker_segment_splits_at_boundary(self):
+        """Words 0-1 s belong to spk:A, words 1-2 s belong to spk:B → split into 2."""
+        seg = _seg_with_words([
+            (" patient", 0.0, 0.5),   # spk:A turn
+            (" speaks", 0.5, 1.0),    # spk:A turn
+            (" doctor", 1.0, 1.5),    # spk:B turn
+            (" asks", 1.5, 2.0),      # spk:B turn
+        ])
+        turns = [
+            _turn("spk:A", 0.0, 1.0),
+            _turn("spk:B", 1.0, 2.0),
+        ]
+        d = align([seg], turns)
+        assert len(d.utterances) == 2
+        assert d.utterances[0].speaker_id == "spk:A"
+        assert d.utterances[1].speaker_id == "spk:B"
+
+    def test_utterance_ids_sequential_across_splits(self):
+        """Ids stay zero-padded sequential even when a segment splits."""
+        seg = _seg_with_words([
+            (" a", 0.0, 0.5),
+            (" b", 1.0, 1.5),
+        ])
+        turns = [_turn("spk:A", 0.0, 0.7), _turn("spk:B", 0.8, 2.0)]
+        d = align([seg], turns)
+        assert [u.id for u in d.utterances] == ["u0000", "u0001"]
+
+    def test_no_word_timings_falls_back_to_segment_overlap(self):
+        """TranscriptSeg without word_timings → max-overlap path, no crash."""
+        seg = _seg("no words", 0.0, 1.0)
+        turns = [_turn("spk:A", 0.0, 2.0)]
+        d = align([seg], turns)
+        assert len(d.utterances) == 1
+        assert d.utterances[0].speaker_id == "spk:A"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

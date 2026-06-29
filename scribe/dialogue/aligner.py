@@ -1,17 +1,18 @@
 """Aligner — pure function mapping transcript segments + speaker turns to utterances.
 
-DEEP, pure, no seam (design.md §5). Phase 1: each transcript segment is
-assigned the ``speaker_id`` of the turn whose ``time_span`` overlaps it most
-(max temporal overlap). Segments that fall in a gap (no overlap) get
-``spk:unknown``. Empty-text segments are dropped in both branches. Utterance
-ids are stable zero-padded indices over the *kept* segments.
-
-The signature stays; Phase 1 only deepened the body.
+DEEP, pure, no seam (design.md §5). When diarizer turns and word-level
+timestamps are both available, segments are split at speaker-change
+boundaries word-by-word so that a single Whisper segment containing two
+speakers produces two correctly-attributed utterances instead of one
+misattributed one. Without word timings (or with NullDiarizer), the old
+max-overlap assignment is used as a fallback.
 """
 
 from __future__ import annotations
 
-from scribe.domain.types import Dialogue, Role, SpeakerTurn, TimeSpan, TranscriptSeg, Utterance
+from scribe.domain.types import (
+    Dialogue, Role, SpeakerTurn, TimeSpan, TranscriptSeg, Utterance, WordTiming,
+)
 
 UNKNOWN_SPEAKER = "spk:unknown"
 
@@ -26,39 +27,100 @@ def align(
     *,
     base_role: Role = Role.UNKNOWN,
 ) -> Dialogue:
-    """Align transcript segments to speaker turns by max temporal overlap.
+    """Align transcript segments to speaker turns.
 
     - ``turns`` empty (NullDiarizer): each non-empty segment → UNKNOWN role,
-      ``spk:unknown`` speaker (Slice-0 behaviour preserved).
-    - ``turns`` present: each non-empty segment → ``base_role`` role and the
-      speaker_id of the turn with the most overlap; gaps → ``spk:unknown``.
-    - Empty-text segments are dropped in both branches.
+      ``spk:unknown`` speaker.
+    - ``turns`` present + word timings available: segments are split at
+      speaker-change boundaries using per-word timestamps.
+    - ``turns`` present, no word timings: max-overlap assignment per segment.
+    - Empty-text segments are dropped in all branches.
     """
     utterances: list[Utterance] = []
     kept = 0
+
     for seg in segments:
         if not seg.text:
-            continue  # drop empty segments consistently
-        best_turn = _best_overlap_turn(seg.time_span, turns) if turns else None
-        speaker_id = best_turn.speaker_id if best_turn is not None else UNKNOWN_SPEAKER
-        utterances.append(
-            Utterance(
-                id=_stable_utterance_id(kept),
-                role=base_role,
-                text=seg.text,
-                time_span=seg.time_span,
-                speaker_id=speaker_id,
+            continue
+
+        if turns and seg.word_timings:
+            sub = _split_by_speaker(seg, turns)
+        elif turns:
+            best = _best_overlap_turn(seg.time_span, turns)
+            speaker_id = best.speaker_id if best else UNKNOWN_SPEAKER
+            sub = [(seg.text, seg.time_span, speaker_id)]
+        else:
+            sub = [(seg.text, seg.time_span, UNKNOWN_SPEAKER)]
+
+        for text, span, speaker_id in sub:
+            utterances.append(
+                Utterance(
+                    id=_stable_utterance_id(kept),
+                    role=base_role,
+                    text=text,
+                    time_span=span,
+                    speaker_id=speaker_id,
+                )
             )
-        )
-        kept += 1
+            kept += 1
+
     return Dialogue(utterances=utterances)
+
+
+def _split_by_speaker(
+    seg: TranscriptSeg, turns: list[SpeakerTurn]
+) -> list[tuple[str, TimeSpan, str]]:
+    """Split a segment into sub-segments at speaker-change boundaries.
+
+    Each word's midpoint is matched to the best diarizer turn. Consecutive
+    words with the same speaker are grouped into one sub-segment.
+    """
+    groups: list[tuple[str, TimeSpan, str]] = []
+    current_words: list[WordTiming] = []
+    current_speaker: str | None = None
+
+    for word in seg.word_timings:
+        best = _best_overlap_turn(word.time_span, turns)
+        speaker = best.speaker_id if best else UNKNOWN_SPEAKER
+
+        if current_speaker is None:
+            current_speaker = speaker
+
+        if speaker != current_speaker:
+            _flush(current_words, current_speaker, groups)
+            current_words = [word]
+            current_speaker = speaker
+        else:
+            current_words.append(word)
+
+    _flush(current_words, current_speaker or UNKNOWN_SPEAKER, groups)
+
+    # Fallback: if splitting produced nothing (e.g. all words empty), keep original
+    if not groups:
+        best = _best_overlap_turn(seg.time_span, turns)
+        speaker_id = best.speaker_id if best else UNKNOWN_SPEAKER
+        return [(seg.text, seg.time_span, speaker_id)]
+
+    return groups
+
+
+def _flush(
+    words: list[WordTiming], speaker: str, out: list[tuple[str, TimeSpan, str]]
+) -> None:
+    if not words:
+        return
+    text = " ".join(w.word for w in words).strip()
+    if not text:
+        return
+    span = TimeSpan(start=words[0].time_span.start, end=words[-1].time_span.end)
+    out.append((text, span, speaker))
 
 
 def _best_overlap_turn(span: TimeSpan, turns: list[SpeakerTurn]) -> SpeakerTurn | None:
     """Return the turn whose time_span overlaps ``span`` the most.
 
-    Ties broken by first occurrence (stable — deterministic across runs).
-    Returns ``None`` when no turn overlaps.
+    Falls back to nearest turn by midpoint when no turn overlaps — catches
+    short fillers ("Um", "No", "Bye") that fall in diarization gaps.
     """
     best: SpeakerTurn | None = None
     best_overlap = 0.0
@@ -66,4 +128,7 @@ def _best_overlap_turn(span: TimeSpan, turns: list[SpeakerTurn]) -> SpeakerTurn 
         ov = max(0.0, min(span.end, turn.time_span.end) - max(span.start, turn.time_span.start))
         if ov > best_overlap:
             best, best_overlap = turn, ov
-    return best
+    if best is not None:
+        return best
+    mid = (span.start + span.end) / 2.0
+    return min(turns, key=lambda t: abs((t.time_span.start + t.time_span.end) / 2.0 - mid))

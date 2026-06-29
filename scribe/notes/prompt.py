@@ -72,28 +72,56 @@ def build_prompt(dialogue: Dialogue) -> str:
     first_id = ids[0] if ids else "u0000"
     last_id = ids[-1] if ids else "u0000"
     example = (
-        '{"subjective": [{"text": "Patient reports chest pain.", '
-        '"citations": [{"utterance_id": "u0003"}]}], '
-        '"objective": [], "assessment": [{"text": "Likely musculoskeletal.", '
-        '"citations": [{"utterance_id": "u0007"}]}], '
-        '"plan": [{"text": "Rest and monitor.", "citations": [{"utterance_id": "u0009"}]}]}'
+        '{"subjective": ['
+        '{"text": "Patient reports sharp chest pain that started this morning, rated 7/10.", '
+        '"citations": [{"utterance_id": "u0003"}, {"utterance_id": "u0005"}]}, '
+        '{"text": "No associated nausea, shortness of breath, or radiation to the arm.", '
+        '"citations": [{"utterance_id": "u0009"}]}], '
+        '"objective": ['
+        '{"text": "No physical examination performed (teleconsultation).", '
+        '"citations": [{"utterance_id": "u0001"}]}], '
+        '"assessment": ['
+        '{"text": "Likely musculoskeletal chest pain. No red flag features for cardiac cause.", '
+        '"citations": [{"utterance_id": "u0021"}, {"utterance_id": "u0023"}]}], '
+        '"plan": ['
+        '{"text": "Advised regular ibuprofen 400 mg with food for 5 days.", '
+        '"citations": [{"utterance_id": "u0025"}]}, '
+        '{"text": "Return if pain worsens, spreads to jaw or arm, or if breathlessness develops.", '
+        '"citations": [{"utterance_id": "u0027"}]}]}'
+    )
+    section_guide = (
+        "SOAP section definitions — populate ALL four:\n"
+        "  SUBJECTIVE   : What the patient reports — symptoms, onset, severity, character, "
+        "associated features, relevant history, medications, allergies, family history, "
+        "social history. Extract every clinically relevant detail the patient states.\n"
+        "  OBJECTIVE    : Measurable findings — vitals, examination findings, test results. "
+        "If this is a teleconsultation with no physical examination, write exactly one claim: "
+        "\"No physical examination performed (teleconsultation).\" citing the opening utterance.\n"
+        "  ASSESSMENT   : The clinician's working diagnosis or clinical impression — "
+        "synthesise the diagnostic reasoning stated or clearly implied by the clinician. "
+        "Include significant positive and negative findings that shape the impression.\n"
+        "  PLAN         : Every management step the clinician recommended — medications "
+        "(drug, dose, duration, instructions), safety-netting advice, follow-up instructions, "
+        "referrals, lifestyle advice. One claim per distinct action.\n"
     )
     return (
-        "You are a clinical scribe. Read the doctor–patient dialogue below and "
-        "write a concise SOAP note grounded strictly in what was said. "
-        "Do not invent information not present in the dialogue.\n\n"
-        "IMPORTANT: For every claim you write, you MUST include a 'citations' "
-        "array listing the utterance id(s) (e.g. \"u0001\") that support it. "
-        f"Valid utterance ids range from {first_id} to {last_id} — "
-        "copy them EXACTLY as they appear in the dialogue lines below. "
-        "Do not invent or guess ids. A claim with a citation to an id not in "
-        "the dialogue will be discarded.\n\n"
+        "You are an expert clinical scribe. Your task is to extract a complete, "
+        "accurate SOAP note from the doctor–patient dialogue below.\n\n"
+        f"{section_guide}\n"
+        "CITATION RULES:\n"
+        "  - Every claim MUST include a 'citations' array with the utterance id(s) "
+        "that directly support it (e.g. \"u0012\").\n"
+        f"  - Valid ids run from {first_id} to {last_id}. Copy them EXACTLY as written.\n"
+        "  - Do not invent ids. Claims citing non-existent ids will be discarded.\n"
+        "  - Multiple utterances may support one claim — list all of them.\n\n"
+        "CONTENT RULES:\n"
+        "  - Extract every piece of clinically relevant information stated in the dialogue.\n"
+        "  - Do not invent, infer, or add anything not explicitly present in the dialogue.\n"
+        "  - Write each claim as a single, complete, clinical sentence.\n"
+        "  - Be thorough: a sparse SOAP note is a patient safety risk.\n\n"
         f"Dialogue:\n{transcript}\n\n"
-        "Respond with a single JSON object that is an INSTANCE of this schema "
-        "(not the schema itself). The top-level keys must be "
-        "'subjective', 'objective', 'assessment', 'plan' — each mapping to an "
-        "array of claim objects. Example response shape:\n"
-        f"{example}\n\n"
-        "Schema for reference:\n"
-        f"{json.dumps(SOAP_SCHEMA, indent=2)}\n"
+        "Respond with a single JSON object matching the schema below. "
+        "No markdown, no code fences — raw JSON only.\n\n"
+        f"Example of the required response shape:\n{example}\n\n"
+        f"Schema:\n{json.dumps(SOAP_SCHEMA, indent=2)}\n"
     )

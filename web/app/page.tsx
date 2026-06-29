@@ -82,6 +82,37 @@ function StepBar({ step }: { step: Step }) {
   );
 }
 
+// ── Elapsed timer ─────────────────────────────────────────────────────────────
+
+function fmtElapsed(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
+}
+
+function ElapsedBadge({ startMs, endMs }: { startMs: number | null; endMs: number | null }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (startMs === null || endMs !== null) return;
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [startMs, endMs]);
+
+  if (startMs === null) return null;
+  const elapsed = (endMs ?? now) - startMs;
+  const done = endMs !== null;
+  return (
+    <span
+      className={`font-mono text-[10px] tabular-nums tracking-widest px-2 py-0.5 rounded ${
+        done ? "text-emerald-700 bg-emerald-50 border border-emerald-200" : "text-clinical/80 bg-clinical/5 border border-clinical/20"
+      }`}
+      title="Pipeline processing time"
+    >
+      {done ? "⏱ " : "● "}{fmtElapsed(elapsed)}
+    </span>
+  );
+}
+
 // ── Loading card ──────────────────────────────────────────────────────────────
 
 function SpinnerCard({ title, sub }: { title: string; sub?: string }) {
@@ -111,26 +142,35 @@ export default function Home() {
   const [editedNote,   setEditedNote]   = useState<SOAPNote | null>(null);
   const [docRef,       setDocRef]       = useState<DocumentRefResponse | null>(null);
   const [error,        setError]        = useState<string | null>(null);
+  const [timerStart,   setTimerStart]   = useState<number | null>(null);
+  const [timerEnd,     setTimerEnd]     = useState<number | null>(null);
 
   function friendlyError(e: unknown): string {
     const msg = e instanceof Error ? e.message : String(e);
     if (/networkerror|failed to fetch|load failed/i.test(msg)) {
       return "Cannot reach the API server at localhost:8000. Start it with: uvicorn scribe.api.app:app --reload";
     }
-    return msg;
+    // Trim huge server tracebacks — show the first meaningful line only
+    const firstLine = msg.split("\n").find((l) => l.trim().length > 0) ?? msg;
+    return firstLine.length > 300 ? firstLine.slice(0, 300) + "…" : firstLine;
   }
 
   async function handleUploadAndGenerate(file: File) {
     setError(null);
+    setTimerStart(null);
+    setTimerEnd(null);
     setStep("uploading");
     try {
       const { path } = await uploadAudio(file);
+      setTimerStart(Date.now());
       setStep("generating");
       const d = await generateDraft(patientRef, encounterRef, path);
+      setTimerEnd(Date.now());
       setDraft(d);
       setEditedNote(d.note);
       setStep("review");
     } catch (e) {
+      setTimerEnd(Date.now());
       setError(friendlyError(e));
       setStep("error");
     }
@@ -156,6 +196,8 @@ export default function Home() {
     setEditedNote(null);
     setDocRef(null);
     setError(null);
+    setTimerStart(null);
+    setTimerEnd(null);
   }
 
   return (
@@ -201,8 +243,11 @@ export default function Home() {
 
       <main className="max-w-6xl mx-auto px-8 py-8 space-y-7">
 
-        {/* Step bar */}
-        <StepBar step={step} />
+        {/* Step bar + elapsed timer */}
+        <div className="flex items-center justify-between">
+          <StepBar step={step} />
+          <ElapsedBadge startMs={timerStart} endMs={timerEnd} />
+        </div>
 
         {/* Error */}
         {step === "error" && (

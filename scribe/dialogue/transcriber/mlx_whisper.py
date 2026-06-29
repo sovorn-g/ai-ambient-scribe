@@ -15,7 +15,7 @@ from scribe.dialogue.transcriber.base import Transcriber
 class MlxWhisperTranscriber(Transcriber):
     """Real ASR adapter backed by mlx-whisper (Apple-Silicon native)."""
 
-    def __init__(self, cfg: Any | None = None, model_id: str = "large-v3-turbo") -> None:
+    def __init__(self, cfg: Any | None = None, model_id: str = "mlx-community/whisper-large-v3-turbo") -> None:
         self.cfg = cfg or {}
         self.model_id = self.cfg.get("model_id", model_id) if isinstance(self.cfg, dict) else model_id
 

@@ -12,8 +12,9 @@ import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger("scribe.api")
 
@@ -53,6 +54,12 @@ async def lifespan(app: FastAPI):
                 "audio_path": "",
                 "draft_store": "sqlite",
                 "db_path": "drafts.db",
+                "diarizer": {
+                    "model_path": "data/.cache/sherpa-models/nemo_en_titanet_small.onnx",
+                    "segmentation_model_path": "data/.cache/sherpa-models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx",
+                    "num_clusters": 2,
+                    "min_duration_on": 0.1,
+                },
             }))
             logger.info("[startup] Scribe ready")
         except Exception as exc:
@@ -64,6 +71,19 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Ambient Scribe API", lifespan=lifespan)
+
+
+@app.exception_handler(Exception)
+async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
+    logger.error("Unhandled exception on %s %s — %s: %s",
+                 request.method, request.url.path,
+                 type(exc).__name__, exc, exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"{type(exc).__name__}: {exc}"},
+    )
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
