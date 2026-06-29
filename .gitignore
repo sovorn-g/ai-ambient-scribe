@@ -16,3 +16,12 @@ out/
 # Local env
 .env
 .envrc
+
+# Next.js
+web/.next/
+web/node_modules/
+web/tsconfig.tsbuildinfo
+web/next-env.d.ts
+
+# SQLite
+drafts.db
