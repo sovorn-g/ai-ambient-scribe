@@ -2,6 +2,14 @@ import type { DraftResponse, DocumentRefResponse, SOAPNote } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+export async function uploadAudio(file: File): Promise<{ path: string; filename: string; size: number }> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE}/audio/upload`, { method: "POST", body: form });
+  if (!res.ok) throw new Error(`Upload failed: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
 export async function generateDraft(
   patientRef: string,
   encounterRef: string,

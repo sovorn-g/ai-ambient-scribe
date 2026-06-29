@@ -7,7 +7,12 @@ business logic lives here.
 
 from __future__ import annotations
 
-from fastapi import Depends, FastAPI, HTTPException
+import tempfile
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 
 from scribe.api.schemas import (
     ApproveRequest,
@@ -33,7 +38,27 @@ from scribe.domain.types import (
     SpanRef,
 )
 
-app = FastAPI(title="Ambient Scribe API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Only wire real adapters if tests haven't pre-injected a fake scribe.
+    if _scribe_instance is None:
+        from scribe.composition import build_scribe
+        set_scribe(build_scribe({
+            "audio_source": "mic",
+            "audio_path": "",
+            "draft_store": "sqlite",
+            "db_path": "drafts.db",
+        }))
+    yield
+
+
+app = FastAPI(title="Ambient Scribe API", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Module-level Scribe instance. Tests override via dependency injection.
 _scribe_instance: Scribe | None = None
@@ -115,6 +140,17 @@ def _note_dto_to_domain(dto: SOAPNoteDTO) -> SOAPNote:
 
 
 # ── endpoints ─────────────────────────────────────────────────────────────────
+
+@app.post("/audio/upload")
+async def upload_audio(file: UploadFile = File(...)) -> dict:
+    """Accept a browser file upload, persist to a temp file, return its path."""
+    suffix = Path(file.filename or "audio").suffix or ".wav"
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    content = await file.read()
+    tmp.write(content)
+    tmp.close()
+    return {"path": tmp.name, "filename": file.filename, "size": len(content)}
+
 
 @app.post("/drafts/generate", response_model=DraftResponse)
 def generate(req: GenerateRequest, scribe: Scribe = Depends(_get_scribe)) -> DraftResponse:
