@@ -11,6 +11,32 @@ import type { DraftResponse, DocumentRefResponse, SOAPNote } from "@/lib/types";
 
 type Step = "idle" | "uploading" | "generating" | "review" | "approving" | "done" | "error";
 
+// ── Logo mark ─────────────────────────────────────────────────────────────────
+// Rounded-square card with an EKG waveform — audio → clinical record
+
+function LogoMark({ size = 28, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 28 28"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      className={className}
+    >
+      <rect width="28" height="28" rx="6" fill="#1B4D82" />
+      <path
+        d="M4 14h4l2-6 4 12 2.5-8 2 4H24"
+        stroke="white"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 // ── Step indicator ────────────────────────────────────────────────────────────
 
 const STEPS = [
@@ -122,21 +148,22 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-vellum">
 
-      {/* Masthead nav — editorial, no shadow */}
-      <header className="bg-nuit border-b border-white/10 px-8 py-4">
+      {/* Masthead nav */}
+      <header className="bg-nuit border-b border-white/10 px-8 py-3.5">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-baseline gap-3">
-            <span className="font-grotesk font-black text-white text-base tracking-[0.12em] uppercase">
-              Ambient Scribe
-            </span>
-            <span className="font-grotesk text-white/30 text-xs">·</span>
-            <span className="font-grotesk text-white/40 text-xs tracking-wide">clinical AI</span>
-          </div>
           <div className="flex items-center gap-3">
-            <span className="font-mono text-[10px] text-white/40 tracking-widest uppercase">
-              Local · M4 · FHIR R5
-            </span>
+            <LogoMark size={28} />
+            <div className="flex items-baseline gap-2">
+              <span className="font-grotesk font-black text-white text-base tracking-[0.12em] uppercase">
+                Ambient Scribe
+              </span>
+              <span className="font-grotesk text-white/30 text-xs">·</span>
+              <span className="font-grotesk text-white/40 text-xs tracking-wide">clinical AI</span>
+            </div>
           </div>
+          <span className="font-mono text-[10px] text-white/40 tracking-widest uppercase">
+            Local · M4 · FHIR R5
+          </span>
         </div>
       </header>
 
@@ -165,6 +192,23 @@ export default function Home() {
         {/* ── Step 1: Upload ── */}
         {step === "idle" && (
           <div className="space-y-5">
+
+            {/* Brand hero */}
+            <div className="flex items-center gap-5 py-2">
+              <LogoMark size={52} />
+              <div>
+                <h1 className="font-grotesk font-black text-nuit text-2xl tracking-[0.08em] uppercase leading-none">
+                  Ambient Scribe
+                </h1>
+                <p className="font-lora text-dusty text-sm mt-1.5 leading-snug">
+                  Fully local clinical AI — audio consultation to FHIR R5 note,<br />
+                  with mandatory clinician sign-off before anything is saved.
+                </p>
+              </div>
+            </div>
+
+            <div className="h-px bg-ruled" />
+
             {/* Patient context */}
             <div className="card px-7 py-5 space-y-4">
               <p className="label-caps">Patient Context</p>
