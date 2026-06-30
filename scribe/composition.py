@@ -117,6 +117,18 @@ def _build_fhir_exporter(cfg: Any) -> FhirExporter:
     return FhirExporter()
 
 
+def build_ambient_service(cfg: Any, scribe: "Scribe") -> "AmbientSessionService":
+    """Wire the AmbientSessionService with the existing Scribe.
+
+    Live listening = capture → stop → ``Scribe.generateDraft`` on the full WAV.
+    No preview transcriber is wired; the service does not emit partial
+    transcripts. (Background chunk transcription can be added later for long
+    sessions without changing the final batch path.)
+    """
+    from scribe.app.ambient import AmbientSessionService
+    return AmbientSessionService(scribe=scribe)
+
+
 # ── build_scribe — call sequence FROZEN ───────────────────────────────────────
 def build_scribe(cfg: dict[str, Any]) -> Scribe:
     """Wire the real-adapter graph. Tests build the graph with fakes instead."""

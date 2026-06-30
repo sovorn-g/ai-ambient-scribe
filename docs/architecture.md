@@ -83,6 +83,42 @@ The core never knows whether the audio came from a saved wav, a live mic, or a
 test fake. The demo points the same `AudioSource=file` adapter at a PriMock57
 recording; production points `AudioSource=mic` at the room. Same pipeline.
 
+### Phase 7 — ambient listening (live capture, final batch truth)
+
+Phase 7 makes "ambient" literal without turning the product into a realtime
+clinical-ops platform. A new app-layer service sits beside `Scribe`:
+
+```
+  browser getUserMedia ──PCM16──▶ WebSocket /ambient/ws
+                                       │
+                                       ▼
+                          AmbientSessionService
+                            │           │
+            audio buffer ◀─┘           └──▶ on End consultation:
+            (UI only shows                write full WAV → Scribe.generateDraft
+             the round listening dial)    (existing batch pipeline)
+```
+
+Key invariants (plans/phase-7-ambient-listening.md):
+
+- **Live listening is record → stop → batch pipeline.** Click record, capture
+  the conversation, click stop. No provisional truth is shown — the UI is a
+  round voice-reactive listening dial.
+- **Finalization reuses `Scribe.generateDraft`** on the FULL captured audio, so
+  the final note quality is the same batch pipeline we benchmarked. The LLM
+  never sees partial audio.
+- **No new core types or seams.** `AmbientSessionService` is an app-layer module
+  (`scribe/app/ambient.py`) that *consumes* `Scribe`; it does not alter the
+  `Scribe` facade or the approval gate.
+- **Background chunk transcription is a future extension, not current
+  behavior.** For long sessions it could transcribe windows in the background
+  while the listening dial keeps running visually — but the final LLM feed
+  would still wait for the complete recording. Not yet implemented.
+
+`build_ambient_service(cfg, scribe)` in `composition.py` wires the service with
+the existing `Scribe` (no separate preview transcriber — finalization uses the
+same `Scribe.generateDraft` path as batch upload).
+
 ## The approval gate is a *type*, not a step
 
 ```
@@ -132,12 +168,14 @@ scribe/  (Python — deep core + thin edges)
   runtime/
     model_host.py      ModelHost (internal, hidden — 16GB residency)
     audio.py           AudioSource [SEAM] → file, mic/stream, fake
+                    live_audio.py        PCM16 buffer + WAV writer (Phase 7)
   app/
     scribe.py          Scribe (facade, DEEP — the public surface)
     drafts.py          DraftStore [seam] → sqlite, in-mem fake
-  api/               FastAPI adapter (THIN)
+    ambient.py         AmbientSessionService (Phase 7 live listening)
+  api/               FastAPI adapter (THIN) + /ambient/ws WebSocket (Phase 7)
   cli/               Slice-0 CLI adapter (THIN)
-  composition.py     build_scribe(config) — wiring root
+  composition.py     build_scribe(config) — wiring root; build_ambient_service (Phase 7)
 
 eval/  (second caller — not runtime)
   harness.py         EvalHarness (drives Scribe.generateDraft only)

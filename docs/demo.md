@@ -24,33 +24,39 @@ API status dot.
 
 ## The script
 
-This is the beat-by-beat script for the demo video. It plays a PriMock57
-consultation **into the live pipeline** (input source = file; processing mode =
-the same ambient-stream path production uses — see
-[docs/architecture.md](architecture.md) §"Input source ≠ processing mode").
+This is the beat-by-beat script for the demo video. It records a real
+conversation through the **Live listening** mode, then runs the same grounded
+batch pipeline used for uploads — see
+[docs/architecture.md](architecture.md) §"Phase 7 — ambient listening".
 
 | # | Beat | What the viewer sees |
 |---|---|---|
-| 1 | **Context** | The dashboard hero: *"Fully local clinical AI — audio consultation to FHIR R5 note, with mandatory clinician sign-off before anything is saved."* Patient + Encounter refs are pre-filled. The **01 Upload → 02 Review → 03 Export** step bar is at step 01. |
-| 2 | **Upload** | Drop a PriMock57 `.wav` (e.g. `data/primock57/day1_consultation01.wav`). The file uploads, the step bar advances and an elapsed timer starts ticking. A spinner card reads *"Running pipeline… Transcription → Speaker diarization → SOAP note generation."* |
-| 3 | **The note falls out** | The spinner is replaced by a split view: left = **speaker-attributed transcript** (CLINICIAN / PATIENT turns with timestamps and coloured rails); right = **editable SOAP note** (S/O/A/P sections). Above both: a loud **DRAFT — requires clinician approval** banner. The meta row shows Patient · Encounter · Utterances. |
-| 4 | **Show grounding (the trust moment)** | Each SOAP claim carries a `SpanRef` citation pointing at a transcript utterance — a compact `◀ 1/X ▶` navigator sits beside each grounded claim. **Hovering** (or focusing the textarea) previews cite `1` — the transcript pane snaps to that utterance via `scrollIntoView`, tints it amber, drops a `cited` chip, and wraps the evidence phrase in a `<mark>` when `char_span` is present. **Click ◀/▶** to pin (sticky) and step through every citation — each press scrolls + highlights its utterance. A `✕` appears to unpin. The pin survives mouse-off so the arrows stay clickable. This is the signature feature — the on-screen proof that every claim traces to something actually said. |
-| 5 | **Clinician edits one field** | Click into any claim text area and edit it (or `+ add entry` / `✕` remove). The note is clearly editable; the DRAFT banner stays until sign-off. |
-| 6 | **Approve → export** | Enter approver name in the Approve section and click Approve. The view flips to a green *"Note approved & exported"* card: *"A FHIR R5 DocumentReference has been generated and signed off. Nothing left the draft state without your review."* |
-| 7 | **The receipt** | The full FHIR R5 `DocumentReference` JSON is rendered below the success card. `← new consultation` resets. |
+| 1 | **Context** | The dashboard hero: *"Fully local clinical AI — audio consultation to FHIR R5 note, with mandatory clinician sign-off before anything is saved."* Patient + Encounter refs are pre-filled. The **01 Upload → 02 Review → 03 Export** step bar is at step 01. The default tab is **Live listening**. |
+| 2 | **Start listening** | Click the round **Record** dial. The mic permission prompt appears; grant it. The dial flips to a deep clinical-blue circle with a red live ring, pulsing outer rings, and a voice-reactive waveform that jumps with each word — the ambient promise, visible. The elapsed timer ticks above the wave. |
+| 3 | **Hold the conversation** | Speak a short mock consultation aloud (clinician + patient lines). The waveform reacts to your voice; the dial keeps pulsing. Nothing else happens on screen yet — the system is just listening. |
+| 4 | **End consultation → the note falls out** | Click **■ End consultation**. The dial fades to *finalising…*; a spinner reads *"Generating final note…"*. The server writes the full captured WAV and runs the existing batch pipeline (MLX-Whisper + diarization + Qwen) on the complete recording. The split view appears: speaker-attributed transcript + editable SOAP note, under a loud **DRAFT — requires clinician approval** banner. |
+| 5 | **Show grounding (the trust moment)** | Each SOAP claim carries a `SpanRef` citation pointing at a transcript utterance — a compact `◀ 1/X ▶` navigator sits beside each grounded claim. **Hovering** (or focusing the textarea) previews cite `1` — the transcript pane snaps to that utterance via `scrollIntoView`, tints it amber, drops a `cited` chip, and wraps the evidence phrase in a `<mark>` when `char_span` is present. **Click ◀/▶** to pin (sticky) and step through every citation. This is the signature feature — the on-screen proof that every claim traces to something actually said. |
+| 6 | **Clinician edits one field** | Click into any claim text area and edit it (or `+ add entry` / `✕` remove). The note is clearly editable; the DRAFT banner stays until sign-off. |
+| 7 | **Approve → export** | Enter approver name in the Approve section and click Approve. The view flips to a green *"Note approved & exported"* card: *"A FHIR R5 DocumentReference has been generated and signed off."* |
+| 8 | **The receipt** | The full FHIR R5 `DocumentReference` JSON is rendered below the success card. `← new consultation` resets. |
 
 ## Recording recipe
 
 1. Run `./dev.sh` and confirm the API dot is green at http://localhost:3000.
-2. Use a PriMock57 wav with a clear medication + condition in the dialogue so
-   the grounding story is obvious (e.g. `day1_consultation01.wav`).
+2. Use the **Live listening** tab with a real mic and speak a short mock
+   consultation (a few clinician/patient exchanges with a clear medication +
+   condition is enough for the grounding story). If you'd rather not stage a
+   conversation, switch to the **Upload recording** tab and pick a PriMock57
+   `.wav` (e.g. `data/primock57/day1_consultation01.wav`) — that path uses the
+   same final batch pipeline.
 3. Screen-record (macOS `Cmd+Shift+5` → Record) at 1080p. Capture the whole
    browser viewport so the DRAFT banner and step bar stay in frame.
-4. Narrate beats 1–7 above. For beat 4, **say aloud** what each claim cites
-   (read the transcript line the claim came from) while hovering the claim, then
-   **click ▶** to pin + step through every cited utterance so the viewer sees
-   all the evidence, not just the first.
-5. Trim the processing wait (beat 2's spinner) but **leave a beat of it** so the
+4. Narrate beats 1–8 above. For beat 2, **point at the dial** and note that the
+   waveform jumps with your voice — it's actually listening. For beat 5,
+   **say aloud** what each claim cites (read the transcript line the claim came
+   from) while hovering the claim, then **click ▶** to pin + step through every
+   cited utterance so the viewer sees all the evidence, not just the first.
+5. Trim the processing wait (beat 4's spinner) but **leave a beat of it** so the
    viewer sees the pipeline is real, not pre-baked.
 6. Save as `docs/demo.mp4` (gitignored — too large for the repo; host
    separately and link from here).
@@ -108,17 +114,57 @@ a Plan claim about *metformin 500mg*, clicks `▶`, and the transcript snaps to
 each clinician utterance that supports it, with the evidence phrase itself
 highlighted.
 
+## Ambient listening — wired (Phase 7)
+
+Phase 7 makes the product's name honest. The product genuinely **listens live**
+instead of only accepting file uploads. Two input modes, both flowing through
+the same grounded batch pipeline:
+
+- **Live listening** tab — click the round dial, hold a natural conversation,
+  click stop. `getUserMedia` mic capture streams PCM16 chunks over a WebSocket
+  (`/ambient/ws`). The dial is a voice-reactive round listening UI (pulsing
+  rings + animated waveform driven by RMS/peak level) so the clinician can see
+  it's actually listening.
+- **Upload recording** tab — the original batch path, kept for debugging /
+  benchmark replay.
+
+The non-obvious design decision: **there is no provisional transcript.** The UI
+during recording is just the listening dial — no live preview text. On **End
+consultation** the server writes the full captured audio to a WAV and runs the
+existing high-quality batch pipeline (`Scribe.generateDraft`) on the complete
+recording. Final transcript, citations, and the SOAP note all come from the
+batch dialogue, so final quality matches the benchmarked numbers. The LLM never
+sees partial audio.
+
+Backend: `AmbientSessionService` (`scribe/app/ambient.py`) owns session state,
+accumulates PCM16 via `LiveAudioBuffer` (`scribe/runtime/live_audio.py`), and
+finalizes by writing the full WAV and calling `Scribe.generateDraft` off the
+event loop. The WebSocket endpoint (`scribe/api/app.py :: /ambient/ws`) is a
+thin adapter over the service — no business logic in the endpoint.
+`build_ambient_service` in `composition.py` wires it with the existing `Scribe`
+(no separate preview transcriber).
+
+Frontend: `web/lib/liveAudio.ts` (`LiveMicRecorder`) does mic capture,
+resampling to 16 kHz mono, and PCM16 encoding, and exposes `LevelSample` for
+the dial. `AmbientRecorder` renders the round listening dial (idle / requesting
+/ listening / finalizing states, animated pulse rings, voice-reactive waveform
+bars, peak indicator) and drives the WebSocket; `page.tsx` lifts the draft-ready
+event into the existing review flow.
+
 ## What the demo proves (acceptance mapping)
 
 Maps to `execute-plan-v2.md` §6 success criteria:
 
 - [x] Audio → transcript → speaker-attributed dialogue → grounded SOAP note,
-      fully local. *(beats 2–3)*
+      fully local. *(beats 2–4)*
 - [x] Every SOAP claim traceable to a transcript span (no ungrounded content).
-      *(beat 4 — structurally enforced by `CitationValidator`)*
+      *(beat 5 — structurally enforced by `CitationValidator`)*
 - [x] Note written back as a valid FHIR `DocumentReference` (R5), linked to
-      Patient/Encounter. *(beat 7)*
+      Patient/Encounter. *(beat 8)*
 - [x] Edit-and-approve UI; nothing saved without human sign-off; visible DRAFT
-      state. *(beats 3, 5, 6 — the gate is a type, not a step)*
+      state. *(beats 4, 6, 7 — the gate is a type, not a step)*
+- [x] Ambient listening: live mic capture with a voice-reactive round listening
+      dial; final note from the existing batch pipeline on the full recording.
+      *(beats 2–4 — Phase 7)*
 - [x] Eval report: WER, DER, grounding, completeness across the bake-off — no
       LLM-judge. *(see [docs/eval-report.md](eval-report.md))*

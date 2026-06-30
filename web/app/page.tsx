@@ -5,11 +5,14 @@ import DraftBanner from "@/components/DraftBanner";
 import TranscriptPane from "@/components/TranscriptPane";
 import SOAPEditor from "@/components/SOAPEditor";
 import AudioUploader from "@/components/AudioUploader";
+import AmbientRecorder from "@/components/AmbientRecorder";
 import ApproveSection from "@/components/ApproveSection";
 import { uploadAudio, generateDraft, editDraft, approveDraft, checkHealth } from "@/lib/api";
 import type { DraftResponse, DocumentRefResponse, SOAPNote, SpanRef } from "@/lib/types";
 
 type Step = "idle" | "uploading" | "generating" | "review" | "approving" | "done" | "error";
+
+type InputMode = "live" | "upload";
 
 // ── Logo mark ─────────────────────────────────────────────────────────────────
 // Rounded-square card with an EKG waveform — audio → clinical record
@@ -133,6 +136,7 @@ export default function Home() {
   const [patientRef,   setPatientRef]   = useState("patient-001");
   const [encounterRef, setEncounterRef] = useState("encounter-001");
   const [step,         setStep]         = useState<Step>("idle");
+  const [inputMode,    setInputMode]    = useState<InputMode>("live");
   const [apiStatus, setApiStatus]       = useState<"checking" | "ok" | "down">("checking");
 
   useEffect(() => {
@@ -202,6 +206,20 @@ export default function Home() {
       setError(friendlyError(e));
       setStep("error");
     }
+  }
+
+  // Phase 7: ambient WebSocket delivered a final batch draft. Reuse the
+  // existing review flow — the draft shape is identical to the upload path.
+  function handleDraftReady(d: DraftResponse) {
+    setTimerEnd(Date.now());
+    setDraft(d);
+    setEditedNote(d.note);
+    setStep("review");
+  }
+
+  function handleAmbientError(msg: string) {
+    setError(msg);
+    setStep("error");
   }
 
   function reset() {
@@ -371,7 +389,36 @@ export default function Home() {
               </div>
             </div>
 
-            <AudioUploader onFile={handleUploadAndGenerate} />
+            {/* Input mode switch (Phase 7) */}
+            <div className="flex items-center gap-1">
+              {([
+                { id: "live",   label: "Live listening" },
+                { id: "upload", label: "Upload recording" },
+              ] as const).map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setInputMode(id)}
+                  className={`label-caps px-3 py-1.5 rounded-t border-b-2 transition-colors ${
+                    inputMode === id
+                      ? "border-clinical text-nuit"
+                      : "border-transparent text-dusty/60 hover:text-dusty"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {inputMode === "live" && (
+              <AmbientRecorder
+                patientRef={patientRef}
+                encounterRef={encounterRef}
+                onDraftReady={handleDraftReady}
+                onError={handleAmbientError}
+              />
+            )}
+            {inputMode === "upload" && <AudioUploader onFile={handleUploadAndGenerate} />}
           </div>
         )}
 

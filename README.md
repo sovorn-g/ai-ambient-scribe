@@ -22,10 +22,20 @@ transcript → structured SOAP note grounded to the transcript → written back 
 FHIR `DocumentReference`. Clinician edits and approves before anything is saved.
 
 **"Ambient" means live background capture of natural conversation** (not
-dictation, not file-upload). The key distinction that keeps the demo honest:
-*input source ≠ processing mode* — the pipeline always processes a **live
-ambient audio stream**; the demo feeds a recording *into that live pipeline*
-(see [docs/architecture.md](docs/architecture.md)).
+dictation, not file-upload). The product supports two input modes, both flowing
+through the same grounded pipeline:
+
+1. **Live listening** — click record, hold a natural conversation, click stop.
+   `getUserMedia` mic capture streams PCM16 chunks over a WebSocket; a round,
+   voice-reactive listening dial shows it's working. On stop the full captured
+   WAV is fed into the existing batch pipeline.
+2. **Upload recording** — the original file-upload path (debugging / benchmark
+   replay).
+
+Final citations, transcript, and SOAP note always come from the existing
+high-quality batch pipeline (MLX-Whisper + sherpa diarization + Qwen note-gen)
+run on the **complete** recording — the LLM never sees partial audio. See
+[docs/architecture.md](docs/architecture.md).
 
 ## Hard constraints (these drive every decision)
 
@@ -117,10 +127,11 @@ ollama pull llama3.1:8b-instruct-q4_K_M
 ./dev.sh
 ```
 
-Open http://localhost:3000 → upload a PriMock57 wav (or hit record) → the
-pipeline runs → speaker-attributed transcript + editable grounded SOAP appear
-under a loud **DRAFT — requires clinician approval** banner → edit a field →
-Approve → a FHIR R5 `DocumentReference` is exported. The demo script is in
+Open http://localhost:3000 → pick **Live listening** (mic — click the round
+dial, talk, stop) or **Upload recording** → the pipeline runs →
+speaker-attributed transcript + editable grounded SOAP appear under a loud
+**DRAFT — requires clinician approval** banner → edit a field → Approve → a
+FHIR R5 `DocumentReference` is exported. The demo script is in
 [docs/demo.md](docs/demo.md).
 
 ---

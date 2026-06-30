@@ -91,7 +91,10 @@ function UtteranceRow({
   );
 }
 
-export default function TranscriptPane({ utterances, activeCitation }: Props) {
+export default function TranscriptPane({
+  utterances,
+  activeCitation,
+}: Props) {
   if (utterances.length === 0) {
     return (
       <p className="font-lora italic text-dusty text-sm text-center py-10">
